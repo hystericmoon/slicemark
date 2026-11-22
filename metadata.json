@@ -1,0 +1,6 @@
+{
+  "name": "Cutframe",
+  "description": "Precision browser video cutter with 15s, 30s, 45s, 60s+ auto-trim, visual filmstrip and audio waveform timeline, framing/audio controls, and lossless FFmpeg.wasm MP4 & ZIP export styled with Astryx Neutral.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
