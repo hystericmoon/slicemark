@@ -128,6 +128,12 @@ export function requiresReencode(
   ) {
     reasons.push('Color adjustments');
   }
+  if (transform.color.sharpen > 0.02) {
+    reasons.push(`Sharpen (${Math.round(transform.color.sharpen * 100)}%)`);
+  }
+  if (transform.color.denoise) {
+    reasons.push('Video denoise');
+  }
   if (transform.color.videoFadeIn > 0.05 || transform.color.videoFadeOut > 0.05) {
     reasons.push('Video fades');
   }
@@ -150,6 +156,9 @@ export function requiresReencode(
     }
     if (audio.fadeIn > 0.05 || audio.fadeOut > 0.05) {
       reasons.push('Audio fades');
+    }
+    if (audio.voiceEnhance) {
+      reasons.push('Voice clarity EQ');
     }
     if (audio.normalize) {
       reasons.push('Audio normalize');
@@ -292,6 +301,9 @@ async function encodeClipToFile(params: {
     }
     if (Math.abs(audio.volume - 1) > 0.01) {
       af.push(`volume=${audio.volume.toFixed(2)}`);
+    }
+    if (audio.voiceEnhance) {
+      af.push('highpass=f=80,lowpass=f=13000,acompressor=threshold=-18dB:ratio=3:attack=20:release=200');
     }
     if (audio.normalize) {
       af.push('dynaudnorm');
@@ -475,18 +487,30 @@ async function encodeClipToFile(params: {
     vLabel = 'vfit';
   }
 
-  // 3. Color Adjustments (Brightness / Contrast / Saturation)
-  const { brightness, contrast, saturation, videoFadeIn, videoFadeOut } = transform.color;
+  // 3. Denoise, Color Grading & Sharpening
+  const { brightness, contrast, saturation, sharpen, denoise, videoFadeIn, videoFadeOut } =
+    transform.color;
+  const enhanceFilters: string[] = [];
+  if (denoise) {
+    enhanceFilters.push('hqdn3d=1.5:1.5:6:6');
+  }
   if (
     Math.abs(brightness) > 0.01 ||
     Math.abs(contrast - 1) > 0.01 ||
     Math.abs(saturation - 1) > 0.01
   ) {
-    graph.push(
-      `[${vLabel}]eq=brightness=${brightness.toFixed(2)}:contrast=${contrast.toFixed(
+    enhanceFilters.push(
+      `eq=brightness=${brightness.toFixed(2)}:contrast=${contrast.toFixed(
         2
-      )}:saturation=${saturation.toFixed(2)}[veq]`
+      )}:saturation=${saturation.toFixed(2)}`
     );
+  }
+  if (sharpen > 0.02) {
+    const lumaAmount = Math.min(1.5, Math.max(0.1, sharpen * 1.5)).toFixed(2);
+    enhanceFilters.push(`unsharp=5:5:${lumaAmount}:5:5:0.0`);
+  }
+  if (enhanceFilters.length > 0) {
+    graph.push(`[${vLabel}]${enhanceFilters.join(',')}[veq]`);
     vLabel = 'veq';
   }
 
@@ -567,6 +591,9 @@ async function encodeClipToFile(params: {
     }
     if (Math.abs(audio.volume - 1) > 0.01) {
       af.push(`volume=${audio.volume.toFixed(2)}`);
+    }
+    if (audio.voiceEnhance) {
+      af.push('highpass=f=80,lowpass=f=13000,acompressor=threshold=-18dB:ratio=3:attack=20:release=200');
     }
     if (audio.normalize) {
       af.push('dynaudnorm');

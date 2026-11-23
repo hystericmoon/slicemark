@@ -9,6 +9,7 @@ import {
   Layers,
   Scissors,
   SlidersHorizontal,
+  Sparkles,
   Type,
   Volume2,
   X,
@@ -24,6 +25,7 @@ import { Timeline } from './components/Timeline';
 import { TopBar } from './components/TopBar';
 import { VideoPreview } from './components/VideoPreview';
 import {
+  AIEnhancePlan,
   AspectPreset,
   AudioSettings,
   AutoTrimMode,
@@ -31,6 +33,7 @@ import {
   ColorSettings,
   CropRect,
   EditorSnapshot,
+  EnhanceGoal,
   ExportProgressState,
   ExportSettings,
   FilmstripFrame,
@@ -46,6 +49,7 @@ import {
   ThemeMode,
   TransformSettings,
 } from './types/editor';
+import { requestAIVideoEnhance } from './utils/aiEnhance';
 import {
   requiresReencode,
   resetFFmpegInstance,
@@ -76,6 +80,8 @@ const INITIAL_COLOR: ColorSettings = {
   brightness: 0,
   contrast: 1,
   saturation: 1,
+  sharpen: 0,
+  denoise: false,
   videoFadeIn: 0,
   videoFadeOut: 0,
 };
@@ -114,6 +120,7 @@ const INITIAL_AUDIO: AudioSettings = {
   fadeIn: 0,
   fadeOut: 0,
   normalize: false,
+  voiceEnhance: false,
   bgAudio: {
     file: null,
     url: null,
@@ -250,6 +257,14 @@ export default function App() {
   const [exportSettings, setExportSettings] = useState<ExportSettings>(INITIAL_EXPORT_SETTINGS);
   const [exportState, setExportState] = useState<ExportProgressState>(INITIAL_EXPORT_STATE);
 
+  // AI Video Auto-Tune State
+  const [enhanceGoal, setEnhanceGoal] = useState<EnhanceGoal>('auto');
+  const [enhancePrompt, setEnhancePrompt] = useState('');
+  const [isEnhancing, setIsEnhancing] = useState(false);
+  const [enhanceStep, setEnhanceStep] = useState('');
+  const [enhancePlan, setEnhancePlan] = useState<AIEnhancePlan | null>(null);
+  const [enhanceError, setEnhanceError] = useState<string | null>(null);
+
   // Track active object URLs for clean unmount disposal
   const activeUrlsRef = useRef<{
     sourceUrl?: string;
@@ -377,6 +392,9 @@ export default function App() {
       setPlayback(INITIAL_PLAYBACK);
       setExportSettings(INITIAL_EXPORT_SETTINGS);
       setSmartSplit(INITIAL_SMART_SPLIT);
+      setEnhancePlan(null);
+      setEnhanceError(null);
+      setEnhanceStep('');
 
       const initialSegments = generateBatchSplitSegments(
         probed.duration,
@@ -1164,6 +1182,133 @@ export default function App() {
     [source, smartSplit, remainderPolicy, handleAspectPresetChange, rebuildBatchSegments, showNotice]
   );
 
+  // AI Video Auto-Tune Handlers
+  const handleApplyAIVisualAudio = useCallback(
+    (plan: AIEnhancePlan) => {
+      setTransform((prev) => ({
+        ...prev,
+        color: {
+          brightness: plan.color.brightness,
+          contrast: plan.color.contrast,
+          saturation: plan.color.saturation,
+          sharpen: plan.color.sharpen,
+          denoise: plan.color.denoise,
+          videoFadeIn: plan.color.videoFadeIn,
+          videoFadeOut: plan.color.videoFadeOut,
+        },
+      }));
+      setAudio((prev) => ({
+        ...prev,
+        muted: false,
+        volume: plan.audio.volume,
+        normalize: plan.audio.normalize,
+        voiceEnhance: plan.audio.voiceEnhance,
+        fadeIn: plan.audio.fadeIn,
+        fadeOut: plan.audio.fadeOut,
+      }));
+      showNotice(`Applied "${plan.visualStyleName}" auto-tune`);
+    },
+    [showNotice]
+  );
+
+  const handleRunAIEnhance = useCallback(async () => {
+    if (!source || isEnhancing) return;
+    setIsEnhancing(true);
+    setEnhanceError(null);
+    setEnhanceStep('Sampling keyframes...');
+    try {
+      const plan = await requestAIVideoEnhance({
+        source,
+        audioPeaks,
+        goal: enhanceGoal,
+        customPrompt: enhancePrompt,
+        onStep: setEnhanceStep,
+      });
+      setEnhancePlan(plan);
+      handleApplyAIVisualAudio(plan);
+    } catch (err) {
+      setEnhanceError(err instanceof Error ? err.message : 'AI Auto-Tune failed unexpectedly.');
+    } finally {
+      setIsEnhancing(false);
+      setEnhanceStep('');
+    }
+  }, [source, isEnhancing, audioPeaks, enhanceGoal, enhancePrompt, handleApplyAIVisualAudio]);
+
+  const handleApplyAIFraming = useCallback(
+    (plan: AIEnhancePlan) => {
+      if (!source) return;
+      const preset = plan.framing.recommendedAspect;
+      const nextCrop = computeCropRectForAspect(
+        source.width,
+        source.height,
+        transform.rotation,
+        preset
+      );
+      setTransform((prev) => ({
+        ...prev,
+        aspectPreset: preset,
+        fitMode: plan.framing.recommendedFitMode,
+        crop: nextCrop,
+      }));
+      showNotice(`Applied ${preset} (${plan.framing.recommendedFitMode}) framing`);
+    },
+    [source, transform.rotation, showNotice]
+  );
+
+  const handleApplyAISmartSplit = useCallback(
+    (plan: AIEnhancePlan) => {
+      const nextSmart: SmartSplitSettings = {
+        ...smartSplit,
+        strategy: 'interval',
+        intervalSeconds: plan.pacing.recommendedIntervalSeconds,
+      };
+      setSmartSplit(nextSmart);
+      rebuildBatchSegments(nextSmart, remainderPolicy);
+      showNotice(`Split into ${plan.pacing.recommendedIntervalSeconds}s clips`);
+    },
+    [smartSplit, remainderPolicy, rebuildBatchSegments, showNotice]
+  );
+
+  const handleApplyAIClips = useCallback(
+    (plan: AIEnhancePlan) => {
+      if (!source || plan.suggestedClips.length === 0) return;
+      const nextSegs: ClipSegment[] = plan.suggestedClips.map((c, idx) => ({
+        id: nextSegmentId(),
+        label: sanitizeFilename(c.label) || `highlight_${String(idx + 1).padStart(2, '0')}`,
+        startTime: clamp(c.startTime, 0, Math.max(0, source.duration - 0.5)),
+        endTime: clamp(c.endTime, Math.min(source.duration, c.startTime + 0.5), source.duration),
+        selected: true,
+      }));
+      commitSnapshot({
+        mode: 'manual',
+        intervalSeconds: smartSplit.intervalSeconds,
+        remainderPolicy,
+        manualCutMode: 'keep-segments',
+        segments: nextSegs,
+        activeSegmentId: nextSegs[0]?.id ?? null,
+      });
+      if (nextSegs[0]) handleSeek(nextSegs[0].startTime);
+      showNotice(`Loaded ${nextSegs.length} AI highlight ${nextSegs.length === 1 ? 'clip' : 'clips'}`);
+    },
+    [source, smartSplit.intervalSeconds, remainderPolicy, commitSnapshot, handleSeek, showNotice]
+  );
+
+  const handleResetEnhancements = useCallback(() => {
+    setTransform((prev) => ({
+      ...prev,
+      color: INITIAL_COLOR,
+    }));
+    setAudio((prev) => ({
+      ...prev,
+      volume: 1,
+      normalize: false,
+      voiceEnhance: false,
+      fadeIn: 0,
+      fadeOut: 0,
+    }));
+    showNotice('Reset visual and audio auto-tune');
+  }, [showNotice]);
+
   // FFmpeg Export Execution
   const startExport = useCallback(
     async (targetSegments: ClipSegment[], singleClipOverride = false) => {
@@ -1367,6 +1512,20 @@ export default function App() {
           setExportSettings((prev) => ({ ...prev, ...next })),
         onApplyPlatformPreset: handleApplyPlatformPreset,
         reencodeReasons: reencodeInfo.reasons,
+        enhanceGoal,
+        onEnhanceGoalChange: setEnhanceGoal,
+        enhancePrompt,
+        onEnhancePromptChange: setEnhancePrompt,
+        isEnhancing,
+        enhanceStep,
+        enhancePlan,
+        enhanceError,
+        onRunAIEnhance: handleRunAIEnhance,
+        onApplyAIVisualAudio: handleApplyAIVisualAudio,
+        onApplyAIFraming: handleApplyAIFraming,
+        onApplyAISmartSplit: handleApplyAISmartSplit,
+        onApplyAIClips: handleApplyAIClips,
+        onResetEnhancements: handleResetEnhancements,
       }
     : null;
 
@@ -1417,17 +1576,19 @@ export default function App() {
   const mobileSheetTitle =
     mobileSheet === 'trim'
       ? 'Trim & Auto-Split'
-      : mobileSheet === 'framing'
-        ? 'Frame & Color'
-        : mobileSheet === 'overlay'
-          ? 'Text & Subtitles'
-          : mobileSheet === 'audio'
-            ? 'Audio & Speed'
-            : mobileSheet === 'export'
-              ? 'Export Settings'
-              : mobileSheet === 'queue'
-                ? `Clip Queue (${selectedCount}/${segments.length})`
-                : '';
+      : mobileSheet === 'enhance'
+        ? 'AI Auto-Tune'
+        : mobileSheet === 'framing'
+          ? 'Frame & Color'
+          : mobileSheet === 'overlay'
+            ? 'Text & Subtitles'
+            : mobileSheet === 'audio'
+              ? 'Audio & Speed'
+              : mobileSheet === 'export'
+                ? 'Export Settings'
+                : mobileSheet === 'queue'
+                  ? `Clip Queue (${selectedCount}/${segments.length})`
+                  : '';
 
   return (
     <div className="h-[100dvh] w-screen overflow-hidden flex flex-col bg-body text-primary">
@@ -1548,11 +1709,12 @@ export default function App() {
           {/* Mobile / Android Bottom Tool Dock */}
           <nav
             aria-label="Mobile editor tools"
-            className="lg:hidden shrink-0 bg-surface border-t border-border px-1 pt-1 pb-[max(0.25rem,env(safe-area-inset-bottom))] grid grid-cols-6 gap-0.5 select-none"
+            className="lg:hidden shrink-0 bg-surface border-t border-border px-0.5 pt-1 pb-[max(0.25rem,env(safe-area-inset-bottom))] grid grid-cols-7 gap-0.5 select-none"
           >
             {(
               [
                 { id: 'trim', label: 'Trim', icon: Scissors },
+                { id: 'enhance', label: 'Tune', icon: Sparkles },
                 { id: 'framing', label: 'Frame', icon: Crop },
                 { id: 'overlay', label: 'Text', icon: Type },
                 { id: 'audio', label: 'Audio', icon: Volume2 },

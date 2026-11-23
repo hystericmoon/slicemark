@@ -3,6 +3,7 @@ import {
   Camera,
   ChevronLeft,
   ChevronRight,
+  Eye,
   Pause,
   Play,
   Redo2,
@@ -94,6 +95,7 @@ export const VideoPreview: React.FC<VideoPreviewProps> = ({
   const bgVideoRef = useRef<HTMLVideoElement | null>(null);
   const bgAudioRef = useRef<HTMLAudioElement | null>(null);
   const [draggingCrop, setDraggingCrop] = useState(false);
+  const [compareOriginal, setCompareOriginal] = useState(false);
   const dragStartRef = useRef<{
     clientX: number;
     clientY: number;
@@ -305,11 +307,26 @@ export const VideoPreview: React.FC<VideoPreviewProps> = ({
     .filter(Boolean)
     .join(' ');
 
-  const cssColorFilter = `brightness(${(1 + transform.color.brightness).toFixed(
-    2
-  )}) contrast(${transform.color.contrast.toFixed(2)}) saturate(${transform.color.saturation.toFixed(
-    2
-  )})`;
+  const hasVisualEnhance =
+    Math.abs(transform.color.brightness) > 0.01 ||
+    Math.abs(transform.color.contrast - 1) > 0.01 ||
+    Math.abs(transform.color.saturation - 1) > 0.01 ||
+    transform.color.sharpen > 0.02 ||
+    transform.color.denoise;
+
+  useEffect(() => {
+    if (!hasVisualEnhance && compareOriginal) {
+      setCompareOriginal(false);
+    }
+  }, [hasVisualEnhance, compareOriginal]);
+
+  // Subtle live preview reflection of sharpen (+contrast micro-crispness); FFmpeg renders full unsharp + hqdn3d on export
+  const effectiveContrast = transform.color.contrast * (1 + transform.color.sharpen * 0.08);
+  const cssColorFilter = compareOriginal
+    ? 'none'
+    : `brightness(${(1 + transform.color.brightness).toFixed(2)}) contrast(${effectiveContrast.toFixed(
+        2
+      )}) saturate(${transform.color.saturation.toFixed(2)})`;
 
   // Live Overlay Badge Data
   const activeClipIndex = activeSegment
@@ -392,6 +409,22 @@ export const VideoPreview: React.FC<VideoPreviewProps> = ({
             }}
             className="relative z-10 w-full h-full object-contain cursor-pointer transition-transform duration-150"
           />
+
+          {/* Before / After Compare Toggle when Color or AI Auto-Tune is active */}
+          {hasVisualEnhance && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                setCompareOriginal((v) => !v);
+              }}
+              title="Toggle Original vs Tuned preview"
+              className="absolute z-30 top-2.5 right-2.5 h-7 px-2.5 rounded-sm bg-[#111111]/80 hover:bg-[#111111]/95 border border-white/15 text-white text-[11px] font-medium inline-flex items-center gap-1.5 transition-colors cursor-pointer whitespace-nowrap"
+            >
+              <Eye className="w-3.5 h-3.5 text-white/80" />
+              <span>{compareOriginal ? 'Viewing Original' : 'Compare Original'}</span>
+            </button>
+          )}
 
           {/* Live Watermark / Part 1/N / Logo Overlay Preview */}
           {hasOverlay && (

@@ -1,7 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import {
+  AlertCircle,
   AudioLines,
   Captions,
+  Check,
   Crop,
   Download,
   FlipHorizontal2,
@@ -14,17 +16,20 @@ import {
   ScanEye,
   Scissors,
   SlidersHorizontal,
+  Sparkles,
   Trash2,
   Type,
   Volume2,
   VolumeX,
 } from 'lucide-react';
 import {
+  AIEnhancePlan,
   AspectPreset,
   AudioSettings,
   AutoTrimMode,
   ClipSegment,
   ColorSettings,
+  EnhanceGoal,
   ExportSettings,
   FitMode,
   InspectorTab,
@@ -95,9 +100,31 @@ interface LeftInspectorProps {
   onExportSettingsChange: (next: Partial<ExportSettings>) => void;
   onApplyPlatformPreset: (presetId: 'reels' | 'tiktok' | 'whatsapp' | 'discord' | 'square') => void;
   reencodeReasons: string[];
+  enhanceGoal: EnhanceGoal;
+  onEnhanceGoalChange: (goal: EnhanceGoal) => void;
+  enhancePrompt: string;
+  onEnhancePromptChange: (prompt: string) => void;
+  isEnhancing: boolean;
+  enhanceStep: string;
+  enhancePlan: AIEnhancePlan | null;
+  enhanceError: string | null;
+  onRunAIEnhance: () => void;
+  onApplyAIVisualAudio: (plan: AIEnhancePlan) => void;
+  onApplyAIFraming: (plan: AIEnhancePlan) => void;
+  onApplyAISmartSplit: (plan: AIEnhancePlan) => void;
+  onApplyAIClips: (plan: AIEnhancePlan) => void;
+  onResetEnhancements: () => void;
   className?: string;
   hideTabBar?: boolean;
 }
+
+const ENHANCE_GOALS: Array<{ id: EnhanceGoal; label: string; hint: string }> = [
+  { id: 'auto', label: 'Balanced Auto', hint: 'Natural exposure, clarity & audio' },
+  { id: 'cinematic', label: 'Cinematic', hint: 'Filmic contrast & rich tone' },
+  { id: 'social-punch', label: 'Social Punch', hint: 'Crisp, vivid & punchy for Reels' },
+  { id: 'clean-studio', label: 'Clean Studio', hint: 'Bright, sharp detail & clean voice' },
+  { id: 'podcast', label: 'Podcast / Voice', hint: 'Flattering tone & vocal EQ boost' },
+];
 
 const ASPECT_OPTIONS: Array<{ value: AspectPreset; label: string; hint: string }> = [
   { value: 'original', label: 'Original', hint: 'Native' },
@@ -154,6 +181,20 @@ export const LeftInspector: React.FC<LeftInspectorProps> = ({
   onExportSettingsChange,
   onApplyPlatformPreset,
   reencodeReasons,
+  enhanceGoal,
+  onEnhanceGoalChange,
+  enhancePrompt,
+  onEnhancePromptChange,
+  isEnhancing,
+  enhanceStep,
+  enhancePlan,
+  enhanceError,
+  onRunAIEnhance,
+  onApplyAIVisualAudio,
+  onApplyAIFraming,
+  onApplyAISmartSplit,
+  onApplyAIClips,
+  onResetEnhancements,
   className,
   hideTabBar = false,
 }) => {
@@ -264,48 +305,325 @@ export const LeftInspector: React.FC<LeftInspectorProps> = ({
         'w-[308px] shrink-0 bg-surface border-r border-border flex flex-col min-h-0'
       }
     >
-      {/* 5-Tab Astryx Neutral Segmented Bar */}
+      {/* 6-Tab Astryx Neutral Segmented Bar */}
       {!hideTabBar && (
-        <div className="p-2.5 border-b border-border">
+        <div className="p-2 border-b border-border">
           <div
             role="tablist"
             aria-label="Inspector sections"
-            className="grid grid-cols-5 gap-1 p-1 rounded-md bg-body"
+            className="grid grid-cols-6 gap-0.5 p-1 rounded-md bg-body"
           >
-          {(
-            [
-              { id: 'trim', label: 'Trim', icon: Scissors },
-              { id: 'framing', label: 'Frame', icon: Crop },
-              { id: 'overlay', label: 'Text', icon: Type },
-              { id: 'audio', label: 'Audio', icon: Volume2 },
-              { id: 'export', label: 'Export', icon: SlidersHorizontal },
-            ] as const
-          ).map(({ id, label, icon: Icon }) => {
-            const active = activeTab === id;
-            return (
-              <button
-                key={id}
-                role="tab"
-                type="button"
-                aria-selected={active}
-                onClick={() => onTabChange(id)}
-                className={`h-8 rounded-sm text-[11px] font-medium flex flex-col items-center justify-center gap-0.5 transition-colors duration-150 cursor-pointer whitespace-nowrap focus-visible:outline-2 focus-visible:outline-info ${
-                  active
-                    ? 'bg-surface text-primary shadow-sm'
-                    : 'text-secondary hover:text-primary'
-                }`}
-              >
-                <Icon className="w-3.5 h-3.5 shrink-0" />
-                <span className="leading-none">{label}</span>
-              </button>
-            );
-          })}
+            {(
+              [
+                { id: 'trim', label: 'Trim', icon: Scissors },
+                { id: 'enhance', label: 'Tune', icon: Sparkles },
+                { id: 'framing', label: 'Frame', icon: Crop },
+                { id: 'overlay', label: 'Text', icon: Type },
+                { id: 'audio', label: 'Audio', icon: Volume2 },
+                { id: 'export', label: 'Export', icon: SlidersHorizontal },
+              ] as const
+            ).map(({ id, label, icon: Icon }) => {
+              const active = activeTab === id;
+              return (
+                <button
+                  key={id}
+                  role="tab"
+                  type="button"
+                  aria-selected={active}
+                  onClick={() => onTabChange(id)}
+                  className={`h-8 rounded-sm text-[10px] font-medium flex flex-col items-center justify-center gap-0.5 transition-colors duration-150 cursor-pointer whitespace-nowrap focus-visible:outline-2 focus-visible:outline-info ${
+                    active
+                      ? 'bg-surface text-primary shadow-sm'
+                      : 'text-secondary hover:text-primary'
+                  }`}
+                >
+                  <Icon className="w-3.5 h-3.5 shrink-0" />
+                  <span className="leading-none">{label}</span>
+                </button>
+              );
+            })}
           </div>
         </div>
       )}
 
       {/* Scrollable Inspector Content */}
       <div className="flex-1 overflow-y-auto studio-scroll p-4 space-y-5">
+        {/* ==================== TAB: AI AUTO-TUNE & ENHANCE ==================== */}
+        {activeTab === 'enhance' && (
+          <>
+            <section className="space-y-3">
+              <div className="flex items-center justify-between gap-2">
+                <div>
+                  <span className="block text-[12px] font-medium text-primary">
+                    AI Video Auto-Tune
+                  </span>
+                  <span className="block text-[11px] text-secondary">
+                    Analyzes keyframes & audio for instant polish
+                  </span>
+                </div>
+                {(Math.abs(transform.color.brightness) > 0.01 ||
+                  Math.abs(transform.color.contrast - 1) > 0.01 ||
+                  Math.abs(transform.color.saturation - 1) > 0.01 ||
+                  transform.color.sharpen > 0.02 ||
+                  transform.color.denoise ||
+                  audio.voiceEnhance ||
+                  audio.normalize) && (
+                  <button
+                    type="button"
+                    onClick={onResetEnhancements}
+                    className="text-[11px] text-secondary hover:text-primary inline-flex items-center gap-1 cursor-pointer shrink-0"
+                  >
+                    <RotateCcw className="w-3 h-3" />
+                    Reset
+                  </button>
+                )}
+              </div>
+
+              <div>
+                <span className="block text-[11px] font-medium text-secondary mb-1.5">
+                  Target Look
+                </span>
+                <div className="grid grid-cols-1 gap-1.5">
+                  {ENHANCE_GOALS.map((g) => {
+                    const selected = enhanceGoal === g.id;
+                    return (
+                      <button
+                        key={g.id}
+                        type="button"
+                        disabled={isEnhancing}
+                        onClick={() => onEnhanceGoalChange(g.id)}
+                        className={`w-full px-2.5 py-2 rounded-md border text-left transition-colors cursor-pointer disabled:opacity-50 ${
+                          selected
+                            ? 'bg-neutral border-border-strong text-primary'
+                            : 'bg-body border-border text-secondary hover:text-primary hover:bg-overlay-hover'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-[12px] font-medium text-primary">{g.label}</span>
+                          {selected && <Check className="w-3.5 h-3.5 text-info shrink-0" />}
+                        </div>
+                        <div className="text-[11px] text-secondary leading-snug mt-0.5">
+                          {g.hint}
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-medium text-secondary mb-1">
+                  Optional Direction
+                </label>
+                <input
+                  type="text"
+                  value={enhancePrompt}
+                  disabled={isEnhancing}
+                  onChange={(e) => onEnhancePromptChange(e.target.value)}
+                  placeholder="e.g. brighter face, crisp text, warm vibe..."
+                  maxLength={240}
+                  className="w-full h-8 px-2.5 rounded-md bg-body border border-border-strong text-[12px] text-primary placeholder:text-secondary/70 focus:outline-none focus:border-info disabled:opacity-50"
+                />
+              </div>
+
+              <button
+                type="button"
+                disabled={isEnhancing}
+                onClick={onRunAIEnhance}
+                className="w-full h-9 px-3 rounded-md bg-accent-bg text-on-accent text-[12px] font-medium hover:opacity-90 disabled:opacity-60 inline-flex items-center justify-center gap-1.5 transition-opacity cursor-pointer"
+              >
+                {isEnhancing ? (
+                  <>
+                    <Loader2 className="w-3.5 h-3.5 animate-spin shrink-0" />
+                    <span className="truncate">{enhanceStep || 'Auto-Tuning video...'}</span>
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="w-3.5 h-3.5 shrink-0" />
+                    <span>{enhancePlan ? 'Re-Analyze & Auto-Tune' : 'Auto-Tune Video'}</span>
+                  </>
+                )}
+              </button>
+
+              {enhanceError && (
+                <div
+                  role="alert"
+                  className="p-2.5 rounded-md bg-error/10 border border-error/30 text-[11px] text-primary flex items-start gap-2"
+                >
+                  <AlertCircle className="w-3.5 h-3.5 text-error shrink-0 mt-0.5" />
+                  <span className="leading-snug">{enhanceError}</span>
+                </div>
+              )}
+            </section>
+
+            {enhancePlan && (
+              <>
+                <section className="pt-4 border-t border-border space-y-2.5">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-[12px] font-semibold text-primary">
+                      {enhancePlan.visualStyleName}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => onApplyAIVisualAudio(enhancePlan)}
+                      className="text-[11px] font-medium text-info hover:underline cursor-pointer shrink-0"
+                    >
+                      Re-Apply
+                    </button>
+                  </div>
+                  <p className="text-[11px] text-secondary leading-relaxed">
+                    {enhancePlan.summary}
+                  </p>
+
+                  {/* Parameter Summary Grid */}
+                  <div className="grid grid-cols-2 gap-1.5 pt-1 text-[11px]">
+                    <div className="px-2 py-1.5 rounded-sm bg-body border border-border flex justify-between">
+                      <span className="text-secondary">Exposure</span>
+                      <span className="font-mono tabular-nums text-primary">
+                        {enhancePlan.color.brightness > 0 ? '+' : ''}
+                        {Math.round(enhancePlan.color.brightness * 100)}%
+                      </span>
+                    </div>
+                    <div className="px-2 py-1.5 rounded-sm bg-body border border-border flex justify-between">
+                      <span className="text-secondary">Contrast</span>
+                      <span className="font-mono tabular-nums text-primary">
+                        {Math.round(enhancePlan.color.contrast * 100)}%
+                      </span>
+                    </div>
+                    <div className="px-2 py-1.5 rounded-sm bg-body border border-border flex justify-between">
+                      <span className="text-secondary">Saturation</span>
+                      <span className="font-mono tabular-nums text-primary">
+                        {Math.round(enhancePlan.color.saturation * 100)}%
+                      </span>
+                    </div>
+                    <div className="px-2 py-1.5 rounded-sm bg-body border border-border flex justify-between">
+                      <span className="text-secondary">Sharpen</span>
+                      <span className="font-mono tabular-nums text-primary">
+                        {Math.round(enhancePlan.color.sharpen * 100)}%
+                      </span>
+                    </div>
+                    <div className="px-2 py-1.5 rounded-sm bg-body border border-border flex justify-between">
+                      <span className="text-secondary">Denoise</span>
+                      <span className="font-mono text-primary">
+                        {enhancePlan.color.denoise ? 'On' : 'Off'}
+                      </span>
+                    </div>
+                    <div className="px-2 py-1.5 rounded-sm bg-body border border-border flex justify-between">
+                      <span className="text-secondary">Voice EQ</span>
+                      <span className="font-mono text-primary">
+                        {enhancePlan.audio.voiceEnhance ? 'On' : 'Off'}
+                      </span>
+                    </div>
+                  </div>
+
+                  {enhancePlan.notes.length > 0 && (
+                    <ul className="space-y-1 pt-1">
+                      {enhancePlan.notes.map((note, idx) => (
+                        <li
+                          key={idx}
+                          className="text-[11px] text-secondary leading-snug flex items-start gap-1.5"
+                        >
+                          <span className="text-info mt-0.5">•</span>
+                          <span>{note}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </section>
+
+                {/* Recommended Framing & Pacing Actions */}
+                <section className="pt-4 border-t border-border space-y-2">
+                  <span className="block text-[12px] font-medium text-secondary">
+                    Smart Actions
+                  </span>
+
+                  {enhancePlan.framing.recommendedAspect !== 'original' && (
+                    <button
+                      type="button"
+                      onClick={() => onApplyAIFraming(enhancePlan)}
+                      className="w-full px-2.5 py-2 rounded-md bg-body border border-border-strong hover:bg-overlay-hover text-left transition-colors cursor-pointer"
+                    >
+                      <div className="flex items-center justify-between gap-2 text-[12px] font-medium text-primary">
+                        <span>
+                          Apply {enhancePlan.framing.recommendedAspect} ({enhancePlan.framing.recommendedFitMode})
+                        </span>
+                        <span className="text-[11px] text-info">Apply</span>
+                      </div>
+                      <div className="text-[11px] text-secondary leading-snug mt-0.5">
+                        {enhancePlan.framing.reason}
+                      </div>
+                    </button>
+                  )}
+
+                  <button
+                    type="button"
+                    onClick={() => onApplyAISmartSplit(enhancePlan)}
+                    className="w-full px-2.5 py-2 rounded-md bg-body border border-border-strong hover:bg-overlay-hover text-left transition-colors cursor-pointer"
+                  >
+                    <div className="flex items-center justify-between gap-2 text-[12px] font-medium text-primary">
+                      <span>
+                        Split every {enhancePlan.pacing.recommendedIntervalSeconds}s
+                      </span>
+                      <span className="text-[11px] text-info">Apply</span>
+                    </div>
+                    <div className="text-[11px] text-secondary leading-snug mt-0.5">
+                      {enhancePlan.pacing.reason}
+                    </div>
+                  </button>
+
+                  {enhancePlan.pacing.suggestRemoveSilence && (
+                    <button
+                      type="button"
+                      disabled={isAnalyzing}
+                      onClick={onAutoRemoveSilence}
+                      className="w-full h-8 px-2.5 rounded-md bg-surface border border-border-strong hover:bg-overlay-hover text-[12px] font-medium text-primary inline-flex items-center justify-center gap-1.5 transition-colors cursor-pointer disabled:opacity-50"
+                    >
+                      <AudioLines className="w-3.5 h-3.5 text-secondary" />
+                      <span>Run Silence Jump-Cut</span>
+                    </button>
+                  )}
+                </section>
+
+                {/* Suggested Highlight Clips */}
+                {enhancePlan.suggestedClips.length > 0 && (
+                  <section className="pt-4 border-t border-border space-y-2">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-[12px] font-medium text-secondary">
+                        Suggested Highlights ({enhancePlan.suggestedClips.length})
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => onApplyAIClips(enhancePlan)}
+                        className="text-[11px] font-medium text-info hover:underline cursor-pointer"
+                      >
+                        Load into Queue
+                      </button>
+                    </div>
+                    <div className="space-y-1.5">
+                      {enhancePlan.suggestedClips.map((clip, i) => (
+                        <div
+                          key={i}
+                          className="px-2.5 py-1.5 rounded-md bg-body border border-border"
+                        >
+                          <div className="flex items-center justify-between gap-2 text-[11px]">
+                            <span className="font-medium text-primary truncate">{clip.label}</span>
+                            <span className="font-mono tabular-nums text-secondary shrink-0">
+                              {formatTimecode(clip.startTime)}–{formatTimecode(clip.endTime)}
+                            </span>
+                          </div>
+                          <div className="text-[10px] text-secondary leading-snug mt-0.5">
+                            {clip.reason}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </section>
+                )}
+              </>
+            )}
+          </>
+        )}
+
         {/* ==================== TAB 1: TRIM & SMART CUTTING ==================== */}
         {activeTab === 'trim' && (
           <>
@@ -992,6 +1310,44 @@ export const LeftInspector: React.FC<LeftInspectorProps> = ({
                   className="w-full astryx-range"
                 />
               </div>
+              <div>
+                <div className="flex justify-between text-[12px] mb-1">
+                  <span className="text-secondary">Sharpen (Unsharp)</span>
+                  <span className="font-mono tabular-nums text-primary">
+                    {Math.round(transform.color.sharpen * 100)}%
+                  </span>
+                </div>
+                <input
+                  type="range"
+                  min={0}
+                  max={1}
+                  step={0.05}
+                  value={transform.color.sharpen}
+                  onChange={(e) => onColorChange({ sharpen: parseFloat(e.target.value) })}
+                  className="w-full astryx-range"
+                />
+              </div>
+              <div className="flex items-center justify-between gap-2 pt-1">
+                <div>
+                  <div className="text-[12px] font-medium text-primary">Video Denoise</div>
+                  <div className="text-[11px] text-secondary">Reduce low-light grain on export</div>
+                </div>
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={transform.color.denoise}
+                  onClick={() => onColorChange({ denoise: !transform.color.denoise })}
+                  className={`w-9 h-5 rounded-full transition-colors p-0.5 cursor-pointer shrink-0 ${
+                    transform.color.denoise ? 'bg-accent-bg' : 'bg-border-strong'
+                  }`}
+                >
+                  <span
+                    className={`block w-4 h-4 rounded-full bg-surface shadow-sm transition-transform ${
+                      transform.color.denoise ? 'translate-x-4' : 'translate-x-0'
+                    }`}
+                  />
+                </button>
+              </div>
             </section>
           </>
         )}
@@ -1300,6 +1656,29 @@ export const LeftInspector: React.FC<LeftInspectorProps> = ({
                   <span
                     className={`block w-4 h-4 rounded-full bg-surface shadow-sm transition-transform ${
                       audio.normalize ? 'translate-x-4' : 'translate-x-0'
+                    }`}
+                  />
+                </button>
+              </div>
+
+              <div className="flex items-center justify-between">
+                <div>
+                  <div className="text-[13px] font-medium text-primary">Voice Clarity EQ</div>
+                  <div className="text-[11px] text-secondary">Rumble cut + speech compressor</div>
+                </div>
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={audio.voiceEnhance}
+                  disabled={audio.muted}
+                  onClick={() => onAudioChange({ voiceEnhance: !audio.voiceEnhance })}
+                  className={`w-9 h-5 rounded-full transition-colors p-0.5 cursor-pointer disabled:opacity-40 ${
+                    audio.voiceEnhance ? 'bg-accent-bg' : 'bg-border-strong'
+                  }`}
+                >
+                  <span
+                    className={`block w-4 h-4 rounded-full bg-surface shadow-sm transition-transform ${
+                      audio.voiceEnhance ? 'translate-x-4' : 'translate-x-0'
                     }`}
                   />
                 </button>

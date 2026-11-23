@@ -26,7 +26,14 @@ export type DeliveryMode = 'individual' | 'merge';
 
 export type OverlayPosition = 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right';
 
-export type InspectorTab = 'trim' | 'framing' | 'overlay' | 'audio' | 'export';
+export type InspectorTab = 'trim' | 'enhance' | 'framing' | 'overlay' | 'audio' | 'export';
+
+export type EnhanceGoal =
+  | 'auto'
+  | 'cinematic'
+  | 'social-punch'
+  | 'clean-studio'
+  | 'podcast';
 
 export interface FilmstripFrame {
   time: number;
@@ -66,6 +73,8 @@ export interface ColorSettings {
   brightness: number; // -0.3 to 0.3
   contrast: number;   // 0.5 to 1.8
   saturation: number; // 0 to 2.0
+  sharpen: number;    // 0 to 1.0 (FFmpeg unsharp)
+  denoise: boolean;   // FFmpeg hqdn3d video denoise
   videoFadeIn: number;  // 0 to 3s
   videoFadeOut: number; // 0 to 3s
 }
@@ -119,6 +128,7 @@ export interface AudioSettings {
   fadeIn: number; // seconds, 0 to 5
   fadeOut: number; // seconds, 0 to 5
   normalize: boolean;
+  voiceEnhance: boolean; // FFmpeg vocal EQ + compressor
   bgAudio: BgAudioSettings;
 }
 
@@ -170,4 +180,44 @@ export interface ExportProgressState {
   downloadUrl?: string;
   downloadFilename?: string;
   error?: string;
+}
+
+export interface AISuggestedClip {
+  label: string;
+  startTime: number;
+  endTime: number;
+  reason: string;
+}
+
+export interface AIEnhancePlan {
+  visualStyleName: string;
+  summary: string;
+  notes: string[];
+  color: {
+    brightness: number;
+    contrast: number;
+    saturation: number;
+    sharpen: number;
+    denoise: boolean;
+    videoFadeIn: number;
+    videoFadeOut: number;
+  };
+  audio: {
+    volume: number;
+    normalize: boolean;
+    voiceEnhance: boolean;
+    fadeIn: number;
+    fadeOut: number;
+  };
+  framing: {
+    recommendedAspect: AspectPreset;
+    recommendedFitMode: FitMode;
+    reason: string;
+  };
+  pacing: {
+    recommendedIntervalSeconds: number;
+    suggestRemoveSilence: boolean;
+    reason: string;
+  };
+  suggestedClips: AISuggestedClip[];
 }
