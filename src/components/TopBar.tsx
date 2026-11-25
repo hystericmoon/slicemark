@@ -9,6 +9,7 @@ interface TopBarProps {
   onImportClick: () => void;
   onOpenShortcuts: () => void;
   onExportClick: () => void;
+  onOpenShowcase?: () => void;
   hasMedia: boolean;
   selectedClipCount: number;
   exportFormat: OutputFormat;
@@ -22,6 +23,7 @@ export const TopBar: React.FC<TopBarProps> = ({
   onImportClick,
   onOpenShortcuts,
   onExportClick,
+  onOpenShowcase,
   hasMedia,
   selectedClipCount,
   exportFormat,
@@ -115,6 +117,16 @@ export const TopBar: React.FC<TopBarProps> = ({
           <Keyboard className="w-3.5 h-3.5" />
           <span>Shortcuts</span>
         </button>
+
+        {onOpenShowcase && (
+          <button
+            type="button"
+            onClick={onOpenShowcase}
+            className="hidden md:inline-flex items-center gap-1.5 py-1.5 text-secondary hover:text-primary transition-colors duration-150 whitespace-nowrap shrink-0 cursor-pointer focus-visible:outline-2 focus-visible:outline-info focus-visible:outline-offset-2 rounded-xs"
+          >
+            <span>Overview</span>
+          </button>
+        )}
 
         <PWAInstallButton compact />
 

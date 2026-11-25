@@ -17,6 +17,7 @@ import {
 import { ChaptersModal } from './components/ChaptersModal';
 import { ClipQueue } from './components/ClipQueue';
 import { ExportModal } from './components/ExportModal';
+import { GitHubPagesShowcase } from './components/GitHubPagesShowcase';
 import { LeftInspector } from './components/LeftInspector';
 import { MediaIntake } from './components/MediaIntake';
 import { OfflineIndicator } from './components/OfflineIndicator';
@@ -168,6 +169,18 @@ const INITIAL_EXPORT_STATE: ExportProgressState = {
 };
 
 export default function App() {
+  const [activeView, setActiveView] = useState<'pages' | 'studio'>(() => {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get('view') === 'studio' || window.location.hash === '#studio') {
+        return 'studio';
+      }
+    } catch {
+      // ignore
+    }
+    return 'pages';
+  });
+
   // Astryx Neutral theme (light & dark mode toggle)
   const [theme, setTheme] = useState<ThemeMode>(() => {
     try {
@@ -1590,6 +1603,16 @@ export default function App() {
                   ? `Clip Queue (${selectedCount}/${segments.length})`
                   : '';
 
+  if (activeView === 'pages') {
+    return (
+      <GitHubPagesShowcase
+        theme={theme}
+        onToggleTheme={() => setTheme((t) => (t === 'dark' ? 'light' : 'dark'))}
+        onLaunchStudio={() => setActiveView('studio')}
+      />
+    );
+  }
+
   return (
     <div className="h-[100dvh] w-screen overflow-hidden flex flex-col bg-body text-primary">
       <input
@@ -1610,6 +1633,7 @@ export default function App() {
         onImportClick={() => fileInputRef.current?.click()}
         onOpenShortcuts={() => setShortcutsOpen(true)}
         onExportClick={() => startExport(segments)}
+        onOpenShowcase={() => setActiveView('pages')}
         hasMedia={Boolean(source)}
         selectedClipCount={selectedCount}
         exportFormat={exportSettings.format}
