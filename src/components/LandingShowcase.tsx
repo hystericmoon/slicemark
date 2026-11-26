@@ -1,21 +1,17 @@
 import React, { useEffect, useState } from 'react';
 import {
   ArrowRight,
-  Check,
-  Copy,
   Download,
-  ExternalLink,
   Moon,
   Pause,
   Play,
   Sun,
 } from 'lucide-react';
 import { ThemeMode } from '../types/editor';
+import urbanStill from '../assets/images/slicemark_urban_cinema_1795442353933.jpg';
+import creatorStill from '../assets/images/slicemark_studio_gentleman_1795610517206.jpg';
 
-const URBAN_STILL = '/src/assets/images/slicemark_urban_cinema_1795442353933.jpg';
-const CREATOR_STILL = '/src/assets/images/slicemark_studio_gentleman_1795610517206.jpg';
-
-interface GitHubPagesShowcaseProps {
+interface LandingShowcaseProps {
   theme: ThemeMode;
   onToggleTheme: () => void;
   onLaunchStudio: () => void;
@@ -158,13 +154,6 @@ const SPEC_GROUPS = [
   },
 ];
 
-const PUBLISH_SNIPPET = `git init
-git add .
-git commit -m "Publish Slicemark GitHub Pages"
-git branch -M main
-git remote add origin https://github.com/YOUR_USERNAME/slicemark.git
-git push -u origin main`;
-
 function formatDemoTime(sec: number): string {
   const m = Math.floor(sec / 60);
   const s = Math.floor(sec % 60);
@@ -172,7 +161,7 @@ function formatDemoTime(sec: number): string {
   return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}.${String(cs).padStart(2, '0')}`;
 }
 
-export const GitHubPagesShowcase: React.FC<GitHubPagesShowcaseProps> = ({
+export const LandingShowcase: React.FC<LandingShowcaseProps> = ({
   theme,
   onToggleTheme,
   onLaunchStudio,
@@ -185,7 +174,6 @@ export const GitHubPagesShowcase: React.FC<GitHubPagesShowcaseProps> = ({
   const [frameAspect, setFrameAspect] = useState<FrameAspectId>('9:16');
   const [frameFit, setFrameFit] = useState<FrameFitId>('blur');
   const [motionDemo, setMotionDemo] = useState<MotionDemoId>('1.5x');
-  const [copiedCmd, setCopiedCmd] = useState(false);
 
   // Smooth live playhead animation for the Hero & Auto-Split studio screenshots
   useEffect(() => {
@@ -252,12 +240,6 @@ export const GitHubPagesShowcase: React.FC<GitHubPagesShowcaseProps> = ({
           ? 'w-[216px] sm:w-[240px] aspect-[4/5]'
           : 'w-full max-w-[440px] aspect-[16/9]';
 
-  const handleCopyPublish = () => {
-    navigator.clipboard?.writeText(PUBLISH_SNIPPET).catch(() => undefined);
-    setCopiedCmd(true);
-    window.setTimeout(() => setCopiedCmd(false), 2200);
-  };
-
   return (
     <div className="min-h-screen w-full bg-body text-primary selection:bg-info/25">
       {/* Strict 3-Zone Top Bar Contract */}
@@ -292,11 +274,11 @@ export const GitHubPagesShowcase: React.FC<GitHubPagesShowcaseProps> = ({
             <a href="#auto-tune" className="hover:text-primary hover:underline underline-offset-4 transition-colors whitespace-nowrap shrink-0">
               AI Auto-Tune
             </a>
+            <a href="#framing" className="hover:text-primary hover:underline underline-offset-4 transition-colors whitespace-nowrap shrink-0">
+              Framing
+            </a>
             <a href="#specs" className="hover:text-primary hover:underline underline-offset-4 transition-colors whitespace-nowrap shrink-0">
               Specifications
-            </a>
-            <a href="#publish" className="hover:text-primary hover:underline underline-offset-4 transition-colors whitespace-nowrap shrink-0">
-              GitHub Pages
             </a>
           </nav>
 
@@ -352,13 +334,10 @@ export const GitHubPagesShowcase: React.FC<GitHubPagesShowcaseProps> = ({
               </button>
 
               <a
-                href="https://slicemark.vercel.app"
-                target="_blank"
-                rel="noopener noreferrer"
+                href="#specs"
                 className="inline-flex items-center gap-1.5 text-[14px] font-medium text-secondary hover:text-primary hover:underline underline-offset-4 transition-colors whitespace-nowrap"
               >
-                <span>Open slicemark.vercel.app</span>
-                <ExternalLink className="w-3.5 h-3.5" />
+                <span>Explore complete capabilities</span>
               </a>
             </div>
           </div>
@@ -453,7 +432,7 @@ export const GitHubPagesShowcase: React.FC<GitHubPagesShowcaseProps> = ({
               <div className="lg:col-span-6 bg-[#0a0a0b] p-4 flex flex-col justify-between">
                 <div className="relative aspect-[16/9] w-full rounded-md overflow-hidden border border-white/10 bg-[#111113]">
                   <img
-                    src={URBAN_STILL}
+                    src={urbanStill}
                     alt="Slicemark live studio viewport showing golden hour Tokyo intersection footage"
                     referrerPolicy="no-referrer"
                     className="w-full h-full object-cover"
@@ -732,7 +711,7 @@ export const GitHubPagesShowcase: React.FC<GitHubPagesShowcaseProps> = ({
                 <div className="relative aspect-[16/9] w-full bg-[#0a0a0b] overflow-hidden select-none">
                   {/* Raw Original Base Layer */}
                   <img
-                    src={CREATOR_STILL}
+                    src={creatorStill}
                     alt="Original ungraded studio creator footage before AI Auto-Tune"
                     referrerPolicy="no-referrer"
                     style={{ filter: 'brightness(0.86) contrast(0.9) saturate(0.76)' }}
@@ -742,7 +721,7 @@ export const GitHubPagesShowcase: React.FC<GitHubPagesShowcaseProps> = ({
                   {/* AI-Tuned Layer with Continuous Wipe Curtain */}
                   <div className="absolute inset-0 sm-animate-wipe">
                     <img
-                      src={CREATOR_STILL}
+                      src={creatorStill}
                       alt="AI Auto-Tuned studio creator footage with balanced exposure and clarity"
                       referrerPolicy="no-referrer"
                       style={{ filter: activeTune.filterCss }}
@@ -818,7 +797,7 @@ export const GitHubPagesShowcase: React.FC<GitHubPagesShowcaseProps> = ({
         </section>
 
         {/* ==================== 03. FRAMING, BACKDROPS & SUBTITLES ==================== */}
-        <section className="border-t border-border">
+        <section id="framing" className="border-t border-border">
           <div className="max-w-[1200px] mx-auto px-4 sm:px-6 py-16 lg:py-24">
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 lg:gap-12 items-center">
               <div className="lg:col-span-5 space-y-4">
@@ -895,7 +874,7 @@ export const GitHubPagesShowcase: React.FC<GitHubPagesShowcaseProps> = ({
                 >
                   {frameFit === 'blur' && (
                     <img
-                      src={URBAN_STILL}
+                      src={urbanStill}
                       alt=""
                       aria-hidden="true"
                       referrerPolicy="no-referrer"
@@ -905,7 +884,7 @@ export const GitHubPagesShowcase: React.FC<GitHubPagesShowcaseProps> = ({
                   )}
 
                   <img
-                    src={URBAN_STILL}
+                    src={urbanStill}
                     alt={`Slicemark ${frameAspect} ${frameFit} framing preview`}
                     referrerPolicy="no-referrer"
                     className={`relative z-10 w-full h-full ${
@@ -1120,7 +1099,7 @@ export const GitHubPagesShowcase: React.FC<GitHubPagesShowcaseProps> = ({
 
                   <div className="relative aspect-[16/10] rounded-md overflow-hidden bg-[#0a0a0b] border border-border">
                     <img
-                      src={CREATOR_STILL}
+                      src={creatorStill}
                       alt="Slicemark Android PWA mobile editor preview"
                       referrerPolicy="no-referrer"
                       className="w-full h-full object-cover"
@@ -1181,77 +1160,25 @@ export const GitHubPagesShowcase: React.FC<GitHubPagesShowcaseProps> = ({
           </div>
         </section>
 
-        {/* ==================== PUBLISH TO GITHUB PAGES SECTION ==================== */}
-        <section id="publish" className="border-t border-border bg-surface/50">
-          <div className="max-w-[1200px] mx-auto px-4 sm:px-6 py-16 lg:py-24">
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 items-start">
-              <div className="lg:col-span-5 space-y-4">
-                <div className="text-[13px] font-medium text-secondary">GitHub Pages Ready</div>
-                <h2 className="font-display text-[28px] sm:text-[34px] font-bold tracking-tight text-primary leading-tight">
-                  Ready to publish on your github.io domain.
-                </h2>
-                <p className="text-[15px] text-secondary leading-relaxed">
-                  A standalone static build of this page is included in{' '}
-                  <code className="font-mono text-[13px] text-primary">/docs/index.html</code>{' '}
-                  alongside a GitHub Actions Pages workflow (
-                  <code className="font-mono text-[13px] text-primary">
-                    .github/workflows/pages.yml
-                  </code>
-                  ). Push to GitHub and enable Pages to go live immediately.
-                </p>
+        {/* ==================== FINAL CTA BAND ==================== */}
+        <section className="border-t border-border bg-surface/50">
+          <div className="max-w-[1200px] mx-auto px-4 sm:px-6 py-16 lg:py-20 flex flex-col md:flex-row md:items-center justify-between gap-6">
+            <div className="space-y-2 max-w-xl">
+              <div className="text-[13px] font-medium text-secondary">Zero uploads · Runs in your browser</div>
+              <h2 className="font-display text-[28px] sm:text-[34px] font-bold tracking-tight text-primary leading-tight">
+                Start cutting locally in your browser.
+              </h2>
+            </div>
 
-                <div className="pt-2 flex flex-wrap items-center gap-4">
-                  <button
-                    type="button"
-                    onClick={onLaunchStudio}
-                    className="h-10 px-5 rounded-md bg-accent-bg text-on-accent text-[13px] font-medium inline-flex items-center gap-2 hover:opacity-90 transition-opacity cursor-pointer"
-                  >
-                    <span>Launch Slicemark Studio</span>
-                    <ArrowRight className="w-3.5 h-3.5" />
-                  </button>
-                  <a
-                    href="/github-pages/"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1.5 text-[13px] font-medium text-secondary hover:text-primary hover:underline underline-offset-4"
-                  >
-                    <span>Preview static /docs build</span>
-                    <ExternalLink className="w-3.5 h-3.5" />
-                  </a>
-                </div>
-              </div>
-
-              <div className="lg:col-span-7 rounded-xl bg-surface border border-border-strong p-5 space-y-3">
-                <div className="flex items-center justify-between gap-3">
-                  <span className="text-[13px] font-semibold text-primary">
-                    Publish to GitHub Pages (2 steps)
-                  </span>
-                  <button
-                    type="button"
-                    onClick={handleCopyPublish}
-                    className="h-8 px-3 rounded-sm bg-body border border-border-strong text-[12px] font-medium text-primary hover:bg-overlay-hover inline-flex items-center gap-1.5 transition-colors cursor-pointer"
-                  >
-                    {copiedCmd ? <Check className="w-3.5 h-3.5 text-info" /> : <Copy className="w-3.5 h-3.5" />}
-                    <span>{copiedCmd ? 'Copied' : 'Copy commands'}</span>
-                  </button>
-                </div>
-
-                <pre className="p-3.5 rounded-md bg-body border border-border font-mono text-[12px] text-primary overflow-x-auto leading-relaxed">
-                  <code>{PUBLISH_SNIPPET}</code>
-                </pre>
-
-                <p className="text-[12px] text-secondary leading-relaxed">
-                  Then in your GitHub repository open{' '}
-                  <strong className="font-medium text-primary">Settings → Pages</strong> and set{' '}
-                  <strong className="font-medium text-primary">Source: GitHub Actions</strong> (or{' '}
-                  <strong className="font-medium text-primary">Deploy from branch: main /docs</strong>
-                  ). Your site publishes to{' '}
-                  <code className="font-mono text-primary">
-                    https://YOUR_USERNAME.github.io/slicemark/
-                  </code>
-                  .
-                </p>
-              </div>
+            <div className="flex flex-wrap items-center gap-4 shrink-0">
+              <button
+                type="button"
+                onClick={onLaunchStudio}
+                className="h-11 px-6 rounded-md bg-accent-bg text-on-accent text-[14px] font-medium inline-flex items-center gap-2 hover:opacity-90 transition-opacity cursor-pointer focus-visible:outline-2 focus-visible:outline-info focus-visible:outline-offset-2"
+              >
+                <span>Launch Slicemark Studio</span>
+                <ArrowRight className="w-4 h-4" />
+              </button>
             </div>
           </div>
         </section>
@@ -1270,12 +1197,12 @@ export const GitHubPagesShowcase: React.FC<GitHubPagesShowcaseProps> = ({
 
           <div className="flex flex-wrap items-center gap-5">
             <a
-              href="https://slicemark.vercel.app"
+              href="https://github.com/hystericmoon/slicemark"
               target="_blank"
               rel="noopener noreferrer"
               className="hover:text-primary transition-colors"
             >
-              Web App
+              GitHub
             </a>
             <button
               type="button"

@@ -79,9 +79,6 @@ async function startServer() {
     }
   });
 
-  const docsDir = path.resolve(__dirname, 'docs');
-  app.use('/github-pages', express.static(docsDir));
-
   if (process.env.NODE_ENV !== 'production') {
     const hmrDisabled = process.env.DISABLE_HMR === 'true';
     if (hmrDisabled) {

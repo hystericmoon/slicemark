@@ -17,7 +17,7 @@ import {
 import { ChaptersModal } from './components/ChaptersModal';
 import { ClipQueue } from './components/ClipQueue';
 import { ExportModal } from './components/ExportModal';
-import { GitHubPagesShowcase } from './components/GitHubPagesShowcase';
+import { LandingShowcase } from './components/LandingShowcase';
 import { LeftInspector } from './components/LeftInspector';
 import { MediaIntake } from './components/MediaIntake';
 import { OfflineIndicator } from './components/OfflineIndicator';
@@ -171,8 +171,13 @@ const INITIAL_EXPORT_STATE: ExportProgressState = {
 export default function App() {
   const [activeView, setActiveView] = useState<'pages' | 'studio'>(() => {
     try {
+      const normalizedPath = window.location.pathname.replace(/\/+$/, '');
       const params = new URLSearchParams(window.location.search);
-      if (params.get('view') === 'studio' || window.location.hash === '#studio') {
+      if (
+        normalizedPath === '/studio' ||
+        params.get('view') === 'studio' ||
+        window.location.hash === '#studio'
+      ) {
         return 'studio';
       }
     } catch {
@@ -180,6 +185,46 @@ export default function App() {
     }
     return 'pages';
   });
+
+  const navigateView = useCallback((nextView: 'pages' | 'studio') => {
+    setActiveView(nextView);
+    try {
+      const targetPath = nextView === 'studio' ? '/studio' : '/';
+      if (window.location.pathname !== targetPath || window.location.search || window.location.hash) {
+        window.history.pushState(null, '', targetPath);
+      }
+    } catch {
+      // ignore
+    }
+  }, []);
+
+  useEffect(() => {
+    try {
+      const normalizedPath = window.location.pathname.replace(/\/+$/, '');
+      const params = new URLSearchParams(window.location.search);
+      if (
+        normalizedPath !== '/studio' &&
+        (params.get('view') === 'studio' || window.location.hash === '#studio')
+      ) {
+        window.history.replaceState(null, '', '/studio');
+      }
+    } catch {
+      // ignore
+    }
+
+    const handlePopState = () => {
+      const normalizedPath = window.location.pathname.replace(/\/+$/, '');
+      const params = new URLSearchParams(window.location.search);
+      const isStudio =
+        normalizedPath === '/studio' ||
+        params.get('view') === 'studio' ||
+        window.location.hash === '#studio';
+      setActiveView(isStudio ? 'studio' : 'pages');
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
 
   // Astryx Neutral theme (light & dark mode toggle)
   const [theme, setTheme] = useState<ThemeMode>(() => {
@@ -1605,10 +1650,10 @@ export default function App() {
 
   if (activeView === 'pages') {
     return (
-      <GitHubPagesShowcase
+      <LandingShowcase
         theme={theme}
         onToggleTheme={() => setTheme((t) => (t === 'dark' ? 'light' : 'dark'))}
-        onLaunchStudio={() => setActiveView('studio')}
+        onLaunchStudio={() => navigateView('studio')}
       />
     );
   }
@@ -1633,7 +1678,7 @@ export default function App() {
         onImportClick={() => fileInputRef.current?.click()}
         onOpenShortcuts={() => setShortcutsOpen(true)}
         onExportClick={() => startExport(segments)}
-        onOpenShowcase={() => setActiveView('pages')}
+        onOpenShowcase={() => navigateView('pages')}
         hasMedia={Boolean(source)}
         selectedClipCount={selectedCount}
         exportFormat={exportSettings.format}
