@@ -6,6 +6,7 @@ import {
   Check,
   Crop,
   Download,
+  ExternalLink,
   FlipHorizontal2,
   ImagePlus,
   ListVideo,
@@ -30,6 +31,8 @@ import {
   ClipSegment,
   ColorSettings,
   EnhanceGoal,
+  EnhanceProvider,
+  EnhanceProviderConfig,
   ExportSettings,
   FitMode,
   InspectorTab,
@@ -104,6 +107,8 @@ interface LeftInspectorProps {
   onEnhanceGoalChange: (goal: EnhanceGoal) => void;
   enhancePrompt: string;
   onEnhancePromptChange: (prompt: string) => void;
+  enhanceProviderConfig: EnhanceProviderConfig;
+  onEnhanceProviderConfigChange: (next: Partial<EnhanceProviderConfig>) => void;
   isEnhancing: boolean;
   enhanceStep: string;
   enhancePlan: AIEnhancePlan | null;
@@ -185,6 +190,8 @@ export const LeftInspector: React.FC<LeftInspectorProps> = ({
   onEnhanceGoalChange,
   enhancePrompt,
   onEnhancePromptChange,
+  enhanceProviderConfig,
+  onEnhanceProviderConfigChange,
   isEnhancing,
   enhanceStep,
   enhancePlan,
@@ -355,10 +362,10 @@ export const LeftInspector: React.FC<LeftInspectorProps> = ({
               <div className="flex items-center justify-between gap-2">
                 <div>
                   <span className="block text-[12px] font-medium text-primary">
-                    AI Video Auto-Tune
+                    Smart Auto-Tune
                   </span>
                   <span className="block text-[11px] text-secondary">
-                    Analyzes keyframes & audio for instant polish
+                    Instant local analysis · optional BYOK AI
                   </span>
                 </div>
                 {(Math.abs(transform.color.brightness) > 0.01 ||
@@ -412,19 +419,123 @@ export const LeftInspector: React.FC<LeftInspectorProps> = ({
               </div>
 
               <div>
-                <label className="block text-[11px] font-medium text-secondary mb-1">
-                  Optional Direction
-                </label>
-                <input
-                  type="text"
-                  value={enhancePrompt}
-                  disabled={isEnhancing}
-                  onChange={(e) => onEnhancePromptChange(e.target.value)}
-                  placeholder="e.g. brighter face, crisp text, warm vibe..."
-                  maxLength={240}
-                  className="w-full h-8 px-2.5 rounded-md bg-body border border-border-strong text-[12px] text-primary placeholder:text-secondary/70 focus:outline-none focus:border-info disabled:opacity-50"
-                />
+                <span className="block text-[11px] font-medium text-secondary mb-1.5">
+                  Engine
+                </span>
+                <div className="grid grid-cols-3 gap-1 p-1 rounded-md bg-body border border-border">
+                  {(
+                    [
+                      { id: 'local', label: 'Local' },
+                      { id: 'openrouter', label: 'OpenRouter' },
+                      { id: 'gemini', label: 'Gemini' },
+                    ] as Array<{ id: EnhanceProvider; label: string }>
+                  ).map((opt) => {
+                    const active = enhanceProviderConfig.provider === opt.id;
+                    return (
+                      <button
+                        key={opt.id}
+                        type="button"
+                        disabled={isEnhancing}
+                        onClick={() => onEnhanceProviderConfigChange({ provider: opt.id })}
+                        className={`h-7 rounded-sm text-[11px] font-medium transition-colors cursor-pointer disabled:opacity-50 ${
+                          active
+                            ? 'bg-surface text-primary shadow-sm border border-border-strong'
+                            : 'text-secondary hover:text-primary'
+                        }`}
+                      >
+                        {opt.label}
+                      </button>
+                    );
+                  })}
+                </div>
+                {enhanceProviderConfig.provider === 'local' ? (
+                  <p className="mt-1.5 text-[11px] text-secondary">
+                    100% local in your browser · $0 · works offline
+                  </p>
+                ) : (
+                  <div className="mt-2 p-2.5 rounded-md bg-body border border-border space-y-2">
+                    <div className="flex items-center justify-between gap-2">
+                      <label className="text-[11px] font-medium text-secondary">
+                        {enhanceProviderConfig.provider === 'openrouter'
+                          ? 'OpenRouter API Key'
+                          : 'Gemini API Key'}
+                      </label>
+                      <a
+                        href={
+                          enhanceProviderConfig.provider === 'openrouter'
+                            ? 'https://openrouter.ai/keys'
+                            : 'https://aistudio.google.com/apikey'
+                        }
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1 text-[10px] text-info hover:underline"
+                      >
+                        <span>Get free key</span>
+                        <ExternalLink className="w-2.5 h-2.5" />
+                      </a>
+                    </div>
+                    <input
+                      type="password"
+                      value={enhanceProviderConfig.apiKey}
+                      disabled={isEnhancing}
+                      onChange={(e) =>
+                        onEnhanceProviderConfigChange({ apiKey: e.target.value })
+                      }
+                      placeholder={
+                        enhanceProviderConfig.provider === 'openrouter'
+                          ? 'sk-or-v1-...'
+                          : 'AIza...'
+                      }
+                      className="w-full h-7 px-2 rounded-sm bg-surface border border-border-strong text-[11px] font-mono text-primary placeholder:text-secondary/60 focus:outline-none focus:border-info disabled:opacity-50"
+                    />
+                    <div className="flex items-center justify-between gap-2">
+                      <label className="text-[10px] text-secondary shrink-0">Model</label>
+                      <input
+                        type="text"
+                        value={
+                          enhanceProviderConfig.provider === 'openrouter'
+                            ? enhanceProviderConfig.openRouterModel
+                            : enhanceProviderConfig.geminiModel
+                        }
+                        disabled={isEnhancing}
+                        onChange={(e) =>
+                          onEnhanceProviderConfigChange(
+                            enhanceProviderConfig.provider === 'openrouter'
+                              ? { openRouterModel: e.target.value }
+                              : { geminiModel: e.target.value }
+                          )
+                        }
+                        placeholder={
+                          enhanceProviderConfig.provider === 'openrouter'
+                            ? 'openrouter/free'
+                            : 'gemini-2.5-flash'
+                        }
+                        className="w-full h-7 px-2 rounded-sm bg-surface border border-border-strong text-[11px] font-mono text-primary focus:outline-none focus:border-info disabled:opacity-50"
+                      />
+                    </div>
+                    <p className="text-[10px] text-secondary">
+                      Stored only in your browser. Calls go straight to the provider.
+                    </p>
+                  </div>
+                )}
               </div>
+
+              {enhanceProviderConfig.provider !== 'local' && (
+                <div>
+                  <label className="block text-[11px] font-medium text-secondary mb-1">
+                    Optional Direction
+                  </label>
+                  <input
+                    type="text"
+                    value={enhancePrompt}
+                    disabled={isEnhancing}
+                    onChange={(e) => onEnhancePromptChange(e.target.value)}
+                    placeholder="e.g. brighter face, crisp text, warm vibe..."
+                    maxLength={240}
+                    className="w-full h-8 px-2.5 rounded-md bg-body border border-border-strong text-[12px] text-primary placeholder:text-secondary/70 focus:outline-none focus:border-info disabled:opacity-50"
+                  />
+                </div>
+              )}
 
               <button
                 type="button"
@@ -460,9 +571,16 @@ export const LeftInspector: React.FC<LeftInspectorProps> = ({
               <>
                 <section className="pt-4 border-t border-border space-y-2.5">
                   <div className="flex items-center justify-between gap-2">
-                    <span className="text-[12px] font-semibold text-primary">
-                      {enhancePlan.visualStyleName}
-                    </span>
+                    <div className="flex items-center gap-1.5 min-w-0">
+                      <span className="text-[12px] font-semibold text-primary truncate">
+                        {enhancePlan.visualStyleName}
+                      </span>
+                      {enhancePlan.engineLabel && (
+                        <span className="px-1.5 py-0.5 rounded-xs bg-neutral border border-border text-[10px] font-mono text-secondary truncate shrink-0">
+                          {enhancePlan.engineLabel}
+                        </span>
+                      )}
+                    </div>
                     <button
                       type="button"
                       onClick={() => onApplyAIVisualAudio(enhancePlan)}

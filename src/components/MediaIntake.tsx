@@ -1,20 +1,14 @@
 import React, { useState } from 'react';
-import { AlertCircle, Film, Play, Upload } from 'lucide-react';
+import { AlertCircle, Film, Upload } from 'lucide-react';
 import { PWAInstallButton } from './PWAInstallButton';
 
 interface MediaIntakeProps {
   onSelectFile: (file: File) => void;
-  onLoadSample: () => void;
-  isLoadingSample: boolean;
-  sampleProgress: { percent: number; label: string } | null;
   error: string | null;
 }
 
 export const MediaIntake: React.FC<MediaIntakeProps> = ({
   onSelectFile,
-  onLoadSample,
-  isLoadingSample,
-  sampleProgress,
   error,
 }) => {
   const [isDragging, setIsDragging] = useState(false);
@@ -94,37 +88,11 @@ export const MediaIntake: React.FC<MediaIntakeProps> = ({
                 accept="video/*"
                 onChange={handleFileInput}
                 className="sr-only"
-                disabled={isLoadingSample}
               />
             </label>
 
-            <button
-              type="button"
-              onClick={onLoadSample}
-              disabled={isLoadingSample}
-              className="h-10 px-5 rounded-md bg-surface border border-border-strong text-primary text-[13px] font-medium inline-flex items-center gap-2 hover:bg-overlay-hover transition-colors duration-150 cursor-pointer disabled:opacity-50 whitespace-nowrap shrink-0 focus-visible:outline-2 focus-visible:outline-info focus-visible:outline-offset-2"
-            >
-              <Play className="w-3.5 h-3.5" />
-              <span>{isLoadingSample ? 'Building 65s Sample...' : 'Load 65s Sample Video'}</span>
-            </button>
-
             <PWAInstallButton />
           </div>
-
-          {isLoadingSample && sampleProgress && (
-            <div className="mt-6 max-w-md mx-auto text-left">
-              <div className="flex items-center justify-between text-[12px] text-secondary mb-1.5">
-                <span>{sampleProgress.label}</span>
-                <span className="font-mono tabular-nums">{sampleProgress.percent}%</span>
-              </div>
-              <div className="h-1.5 w-full rounded-full bg-neutral overflow-hidden">
-                <div
-                  className="h-full bg-info transition-transform duration-150 origin-left"
-                  style={{ transform: `scaleX(${Math.max(0.03, sampleProgress.percent / 100)})` }}
-                />
-              </div>
-            </div>
-          )}
 
           {error && (
             <div

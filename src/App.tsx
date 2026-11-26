@@ -35,6 +35,7 @@ import {
   CropRect,
   EditorSnapshot,
   EnhanceGoal,
+  EnhanceProviderConfig,
   ExportProgressState,
   ExportSettings,
   FilmstripFrame,
@@ -62,7 +63,6 @@ import {
   extractFilmstrip,
   probeMediaFile,
 } from './utils/mediaAnalysis';
-import { generateSampleVideoFile } from './utils/sampleVideoGenerator';
 import {
   computeCropRectForAspect,
   computeOutputResolution,
@@ -260,11 +260,6 @@ export default function App() {
   const [audioPeaks, setAudioPeaks] = useState<number[]>([]);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [intakeError, setIntakeError] = useState<string | null>(null);
-  const [isLoadingSample, setIsLoadingSample] = useState(false);
-  const [sampleProgress, setSampleProgress] = useState<{
-    percent: number;
-    label: string;
-  } | null>(null);
   const [isDetectingScenes, setIsDetectingScenes] = useState(false);
   const [sceneDetectPercent, setSceneDetectPercent] = useState(0);
 
@@ -315,13 +310,60 @@ export default function App() {
   const [exportSettings, setExportSettings] = useState<ExportSettings>(INITIAL_EXPORT_SETTINGS);
   const [exportState, setExportState] = useState<ExportProgressState>(INITIAL_EXPORT_STATE);
 
-  // AI Video Auto-Tune State
+  // Smart Auto-Tune State
   const [enhanceGoal, setEnhanceGoal] = useState<EnhanceGoal>('auto');
   const [enhancePrompt, setEnhancePrompt] = useState('');
+  const [enhanceProviderConfig, setEnhanceProviderConfig] = useState<EnhanceProviderConfig>(() => {
+    const defaults: EnhanceProviderConfig = {
+      provider: 'local',
+      apiKey: '',
+      openRouterModel: 'openrouter/free',
+      geminiModel: 'gemini-2.5-flash',
+    };
+    try {
+      const raw = localStorage.getItem('slicemark_autotune_config');
+      if (raw) {
+        const parsed = JSON.parse(raw) as Partial<EnhanceProviderConfig>;
+        return {
+          provider:
+            parsed.provider === 'openrouter' || parsed.provider === 'gemini' || parsed.provider === 'local'
+              ? parsed.provider
+              : 'local',
+          apiKey: typeof parsed.apiKey === 'string' ? parsed.apiKey : '',
+          openRouterModel:
+            typeof parsed.openRouterModel === 'string' && parsed.openRouterModel.trim()
+              ? parsed.openRouterModel
+              : 'openrouter/free',
+          geminiModel:
+            typeof parsed.geminiModel === 'string' && parsed.geminiModel.trim()
+              ? parsed.geminiModel
+              : 'gemini-2.5-flash',
+        };
+      }
+    } catch {
+      // ignore storage errors
+    }
+    return defaults;
+  });
   const [isEnhancing, setIsEnhancing] = useState(false);
   const [enhanceStep, setEnhanceStep] = useState('');
   const [enhancePlan, setEnhancePlan] = useState<AIEnhancePlan | null>(null);
   const [enhanceError, setEnhanceError] = useState<string | null>(null);
+
+  const handleEnhanceProviderConfigChange = useCallback(
+    (next: Partial<EnhanceProviderConfig>) => {
+      setEnhanceProviderConfig((prev) => {
+        const updated = { ...prev, ...next };
+        try {
+          localStorage.setItem('slicemark_autotune_config', JSON.stringify(updated));
+        } catch {
+          // ignore storage errors
+        }
+        return updated;
+      });
+    },
+    []
+  );
 
   // Track active object URLs for clean unmount disposal
   const activeUrlsRef = useRef<{
@@ -498,25 +540,6 @@ export default function App() {
       setIntakeError(err instanceof Error ? err.message : 'Unable to open video file.');
     }
   }, []);
-
-  const handleLoadSample = useCallback(async () => {
-    setIntakeError(null);
-    setIsLoadingSample(true);
-    setSampleProgress({ percent: 5, label: 'Initializing sample studio generator...' });
-    try {
-      const sampleFile = await generateSampleVideoFile((percent, label) => {
-        setSampleProgress({ percent, label });
-      });
-      await loadVideoFile(sampleFile);
-    } catch (err) {
-      setIntakeError(
-        err instanceof Error ? err.message : 'Could not build sample video in browser.'
-      );
-    } finally {
-      setIsLoadingSample(false);
-      setSampleProgress(null);
-    }
-  }, [loadVideoFile]);
 
   // Seeking & Playback Controls
   const handleSeek = useCallback(
@@ -1280,17 +1303,18 @@ export default function App() {
         audioPeaks,
         goal: enhanceGoal,
         customPrompt: enhancePrompt,
+        providerConfig: enhanceProviderConfig,
         onStep: setEnhanceStep,
       });
       setEnhancePlan(plan);
       handleApplyAIVisualAudio(plan);
     } catch (err) {
-      setEnhanceError(err instanceof Error ? err.message : 'AI Auto-Tune failed unexpectedly.');
+      setEnhanceError(err instanceof Error ? err.message : 'Smart Auto-Tune failed unexpectedly.');
     } finally {
       setIsEnhancing(false);
       setEnhanceStep('');
     }
-  }, [source, isEnhancing, audioPeaks, enhanceGoal, enhancePrompt, handleApplyAIVisualAudio]);
+  }, [source, isEnhancing, audioPeaks, enhanceGoal, enhancePrompt, enhanceProviderConfig, handleApplyAIVisualAudio]);
 
   const handleApplyAIFraming = useCallback(
     (plan: AIEnhancePlan) => {
@@ -1574,6 +1598,8 @@ export default function App() {
         onEnhanceGoalChange: setEnhanceGoal,
         enhancePrompt,
         onEnhancePromptChange: setEnhancePrompt,
+        enhanceProviderConfig,
+        onEnhanceProviderConfigChange: handleEnhanceProviderConfigChange,
         isEnhancing,
         enhanceStep,
         enhancePlan,
@@ -1635,7 +1661,7 @@ export default function App() {
     mobileSheet === 'trim'
       ? 'Trim & Auto-Split'
       : mobileSheet === 'enhance'
-        ? 'AI Auto-Tune'
+        ? 'Smart Auto-Tune'
         : mobileSheet === 'framing'
           ? 'Frame & Color'
           : mobileSheet === 'overlay'
@@ -1694,9 +1720,6 @@ export default function App() {
       {!source ? (
         <MediaIntake
           onSelectFile={loadVideoFile}
-          onLoadSample={handleLoadSample}
-          isLoadingSample={isLoadingSample}
-          sampleProgress={sampleProgress}
           error={intakeError}
         />
       ) : (

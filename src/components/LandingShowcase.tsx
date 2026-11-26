@@ -120,10 +120,10 @@ const SPEC_GROUPS = [
     ],
   },
   {
-    title: 'AI Video Auto-Tune',
+    title: 'Smart Auto-Tune',
     items: [
-      'Samples 6 keyframes + audio loudness & quiet-ratio telemetry',
-      '5 tuned style goals plus custom natural-language direction',
+      'Samples 6 keyframes + audio loudness & quiet-ratio telemetry locally',
+      '5 tuned style goals offline, plus optional BYOK OpenRouter & Gemini AI',
       'Auto-calibrates brightness, contrast, saturation, sharpen, denoise',
       'Auto-configures vocal EQ, loudness normalization & fade ramps',
       'One-click smart framing, split cadence & highlight clip queue',
@@ -774,13 +774,16 @@ export const LandingShowcase: React.FC<LandingShowcaseProps> = ({
               </div>
 
               <div className="lg:col-span-5 order-1 lg:order-2 space-y-4">
-                <div className="text-[13px] font-medium text-secondary">02. AI Video Auto-Tune</div>
+                <div className="text-[13px] font-medium text-secondary">
+                  02. Smart Auto-Tune (Local + Optional BYOK AI)
+                </div>
                 <h2 className="font-display text-[28px] sm:text-[34px] font-bold tracking-tight text-primary leading-tight">
                   One-click color, sharpening, denoise, and vocal mastering.
                 </h2>
                 <p className="text-[15px] text-secondary leading-relaxed">
-                  Slicemark samples 6 keyframes and audio loudness metrics from your timeline and
-                  calibrates real FFmpeg filters—<code className="font-mono text-[13px] text-primary">eq</code>,{' '}
+                  Slicemark samples 6 keyframes and audio loudness metrics locally in your browser
+                  (with optional BYOK OpenRouter or Gemini AI) and calibrates real FFmpeg filters—
+                  <code className="font-mono text-[13px] text-primary">eq</code>,{' '}
                   <code className="font-mono text-[13px] text-primary">unsharp</code>,{' '}
                   <code className="font-mono text-[13px] text-primary">hqdn3d</code>,{' '}
                   <code className="font-mono text-[13px] text-primary">acompressor</code>, and{' '}

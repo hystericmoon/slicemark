@@ -35,6 +35,15 @@ export type EnhanceGoal =
   | 'clean-studio'
   | 'podcast';
 
+export type EnhanceProvider = 'local' | 'openrouter' | 'gemini';
+
+export interface EnhanceProviderConfig {
+  provider: EnhanceProvider;
+  apiKey: string;
+  openRouterModel: string;
+  geminiModel: string;
+}
+
 export interface FilmstripFrame {
   time: number;
   dataUrl: string;
@@ -190,6 +199,7 @@ export interface AISuggestedClip {
 }
 
 export interface AIEnhancePlan {
+  engineLabel?: string;
   visualStyleName: string;
   summary: string;
   notes: string[];
