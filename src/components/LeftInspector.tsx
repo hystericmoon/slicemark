@@ -57,6 +57,7 @@ import {
   MAX_SIZE_PRESETS_MB,
   SPLIT_COUNT_PRESETS,
 } from '../utils/segmentGenerator';
+import { GEMINI_MODEL_PRESETS, OPENROUTER_MODEL_PRESETS } from '../utils/aiEnhance';
 import { clamp, formatTimecode, parseTimecode } from '../utils/timecode';
 
 interface LeftInspectorProps {
@@ -210,6 +211,7 @@ export const LeftInspector: React.FC<LeftInspectorProps> = ({
   const [customMbInput, setCustomMbInput] = useState(String(smartSplit.maxSizeMB));
   const [startInput, setStartInput] = useState('00:00.00');
   const [endInput, setEndInput] = useState('00:15.00');
+  const [customModelOpen, setCustomModelOpen] = useState(false);
 
   useEffect(() => {
     setCustomIntervalInput(String(smartSplit.intervalSeconds));
@@ -452,72 +454,106 @@ export const LeftInspector: React.FC<LeftInspectorProps> = ({
                   <p className="mt-1.5 text-[11px] text-secondary">
                     100% local in your browser · $0 · works offline
                   </p>
-                ) : (
-                  <div className="mt-2 p-2.5 rounded-md bg-body border border-border space-y-2">
-                    <div className="flex items-center justify-between gap-2">
-                      <label className="text-[11px] font-medium text-secondary">
-                        {enhanceProviderConfig.provider === 'openrouter'
-                          ? 'OpenRouter API Key'
-                          : 'Gemini API Key'}
-                      </label>
-                      <a
-                        href={
-                          enhanceProviderConfig.provider === 'openrouter'
-                            ? 'https://openrouter.ai/keys'
-                            : 'https://aistudio.google.com/apikey'
-                        }
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1 text-[10px] text-info hover:underline"
-                      >
-                        <span>Get free key</span>
-                        <ExternalLink className="w-2.5 h-2.5" />
-                      </a>
-                    </div>
-                    <input
-                      type="password"
-                      value={enhanceProviderConfig.apiKey}
-                      disabled={isEnhancing}
-                      onChange={(e) =>
-                        onEnhanceProviderConfigChange({ apiKey: e.target.value })
-                      }
-                      placeholder={
-                        enhanceProviderConfig.provider === 'openrouter'
-                          ? 'sk-or-v1-...'
-                          : 'AIza...'
-                      }
-                      className="w-full h-7 px-2 rounded-sm bg-surface border border-border-strong text-[11px] font-mono text-primary placeholder:text-secondary/60 focus:outline-none focus:border-info disabled:opacity-50"
-                    />
-                    <div className="flex items-center justify-between gap-2">
-                      <label className="text-[10px] text-secondary shrink-0">Model</label>
+                ) : (() => {
+                  const isOpenRouter = enhanceProviderConfig.provider === 'openrouter';
+                  const presets = isOpenRouter ? OPENROUTER_MODEL_PRESETS : GEMINI_MODEL_PRESETS;
+                  const currentModel = isOpenRouter
+                    ? enhanceProviderConfig.openRouterModel
+                    : enhanceProviderConfig.geminiModel;
+                  const isPreset = presets.some((p) => p.id === currentModel);
+                  const showCustomInput = customModelOpen || !isPreset;
+                  const selectValue = showCustomInput ? '__custom__' : currentModel;
+
+                  return (
+                    <div className="mt-2 p-2.5 rounded-md bg-body border border-border space-y-2">
+                      <div className="flex items-center justify-between gap-2">
+                        <label className="text-[11px] font-medium text-secondary">
+                          {isOpenRouter ? 'OpenRouter API Key' : 'Gemini API Key'}
+                        </label>
+                        <a
+                          href={
+                            isOpenRouter
+                              ? 'https://openrouter.ai/keys'
+                              : 'https://aistudio.google.com/apikey'
+                          }
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1 text-[10px] text-info hover:underline"
+                        >
+                          <span>Get free key</span>
+                          <ExternalLink className="w-2.5 h-2.5" />
+                        </a>
+                      </div>
                       <input
-                        type="text"
+                        type="password"
                         value={
-                          enhanceProviderConfig.provider === 'openrouter'
-                            ? enhanceProviderConfig.openRouterModel
-                            : enhanceProviderConfig.geminiModel
+                          isOpenRouter
+                            ? enhanceProviderConfig.openRouterApiKey
+                            : enhanceProviderConfig.geminiApiKey
                         }
                         disabled={isEnhancing}
                         onChange={(e) =>
                           onEnhanceProviderConfigChange(
-                            enhanceProviderConfig.provider === 'openrouter'
-                              ? { openRouterModel: e.target.value }
-                              : { geminiModel: e.target.value }
+                            isOpenRouter
+                              ? { openRouterApiKey: e.target.value }
+                              : { geminiApiKey: e.target.value }
                           )
                         }
-                        placeholder={
-                          enhanceProviderConfig.provider === 'openrouter'
-                            ? 'openrouter/free'
-                            : 'gemini-2.5-flash'
-                        }
-                        className="w-full h-7 px-2 rounded-sm bg-surface border border-border-strong text-[11px] font-mono text-primary focus:outline-none focus:border-info disabled:opacity-50"
+                        placeholder={isOpenRouter ? 'sk-or-v1-...' : 'AIza...'}
+                        className="w-full h-7 px-2 rounded-sm bg-surface border border-border-strong text-[11px] font-mono text-primary placeholder:text-secondary/60 focus:outline-none focus:border-info disabled:opacity-50"
                       />
+                      <div className="space-y-1.5">
+                        <div className="flex items-center justify-between gap-2">
+                          <label className="text-[10px] text-secondary shrink-0">Model</label>
+                          <select
+                            value={selectValue}
+                            disabled={isEnhancing}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              if (val === '__custom__') {
+                                setCustomModelOpen(true);
+                                return;
+                              }
+                              setCustomModelOpen(false);
+                              onEnhanceProviderConfigChange(
+                                isOpenRouter ? { openRouterModel: val } : { geminiModel: val }
+                              );
+                            }}
+                            className="w-full h-7 px-2 rounded-sm bg-surface border border-border-strong text-[11px] text-primary focus:outline-none focus:border-info disabled:opacity-50 cursor-pointer"
+                          >
+                            {presets.map((p) => (
+                              <option key={p.id} value={p.id}>
+                                {p.label}
+                              </option>
+                            ))}
+                            <option value="__custom__">Custom model ID...</option>
+                          </select>
+                        </div>
+                        {showCustomInput && (
+                          <input
+                            type="text"
+                            value={currentModel === 'auto' ? '' : currentModel}
+                            disabled={isEnhancing}
+                            onChange={(e) =>
+                              onEnhanceProviderConfigChange(
+                                isOpenRouter
+                                  ? { openRouterModel: e.target.value }
+                                  : { geminiModel: e.target.value }
+                              )
+                            }
+                            placeholder={
+                              isOpenRouter ? 'e.g. google/gemini-2.5-flash' : 'e.g. gemini-2.5-flash'
+                            }
+                            className="w-full h-7 px-2 rounded-sm bg-surface border border-border-strong text-[11px] font-mono text-primary placeholder:text-secondary/60 focus:outline-none focus:border-info disabled:opacity-50"
+                          />
+                        )}
+                      </div>
+                      <p className="text-[10px] text-secondary">
+                        Tries best model first, auto-falls back if busy. Key stays in your browser.
+                      </p>
                     </div>
-                    <p className="text-[10px] text-secondary">
-                      Stored only in your browser. Calls go straight to the provider.
-                    </p>
-                  </div>
-                )}
+                  );
+                })()}
               </div>
 
               {enhanceProviderConfig.provider !== 'local' && (

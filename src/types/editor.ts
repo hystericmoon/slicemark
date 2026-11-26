@@ -39,7 +39,8 @@ export type EnhanceProvider = 'local' | 'openrouter' | 'gemini';
 
 export interface EnhanceProviderConfig {
   provider: EnhanceProvider;
-  apiKey: string;
+  openRouterApiKey: string;
+  geminiApiKey: string;
   openRouterModel: string;
   geminiModel: string;
 }

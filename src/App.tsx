@@ -316,28 +316,44 @@ export default function App() {
   const [enhanceProviderConfig, setEnhanceProviderConfig] = useState<EnhanceProviderConfig>(() => {
     const defaults: EnhanceProviderConfig = {
       provider: 'local',
-      apiKey: '',
-      openRouterModel: 'openrouter/free',
-      geminiModel: 'gemini-2.5-flash',
+      openRouterApiKey: '',
+      geminiApiKey: '',
+      openRouterModel: 'auto',
+      geminiModel: 'auto',
     };
     try {
       const raw = localStorage.getItem('slicemark_autotune_config');
       if (raw) {
-        const parsed = JSON.parse(raw) as Partial<EnhanceProviderConfig>;
+        const parsed = JSON.parse(raw) as Partial<EnhanceProviderConfig> & { apiKey?: string };
+        const legacyKey = typeof parsed.apiKey === 'string' ? parsed.apiKey : '';
+        const looksOpenRouter =
+          legacyKey.trim().startsWith('sk-or-') || parsed.provider === 'openrouter';
+
         return {
           provider:
             parsed.provider === 'openrouter' || parsed.provider === 'gemini' || parsed.provider === 'local'
               ? parsed.provider
               : 'local',
-          apiKey: typeof parsed.apiKey === 'string' ? parsed.apiKey : '',
+          openRouterApiKey:
+            typeof parsed.openRouterApiKey === 'string'
+              ? parsed.openRouterApiKey
+              : looksOpenRouter
+                ? legacyKey
+                : '',
+          geminiApiKey:
+            typeof parsed.geminiApiKey === 'string'
+              ? parsed.geminiApiKey
+              : !looksOpenRouter
+                ? legacyKey
+                : '',
           openRouterModel:
             typeof parsed.openRouterModel === 'string' && parsed.openRouterModel.trim()
               ? parsed.openRouterModel
-              : 'openrouter/free',
+              : 'auto',
           geminiModel:
             typeof parsed.geminiModel === 'string' && parsed.geminiModel.trim()
               ? parsed.geminiModel
-              : 'gemini-2.5-flash',
+              : 'auto',
         };
       }
     } catch {

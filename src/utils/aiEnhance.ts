@@ -740,7 +740,71 @@ function sanitizeEnhancePlan(
   };
 }
 
-async function runOpenRouterEnhance(params: {
+export interface ModelPresetOption {
+  id: string;
+  label: string;
+}
+
+export const GEMINI_MODEL_PRESETS: ModelPresetOption[] = [
+  { id: 'auto', label: 'Auto (Best -> Fast fallback)' },
+  { id: 'gemini-2.5-pro', label: 'Gemini 2.5 Pro · Best quality' },
+  { id: 'gemini-2.5-flash', label: 'Gemini 2.5 Flash · Free & fast' },
+  { id: 'gemini-2.5-flash-lite', label: 'Gemini 2.5 Flash-Lite · Fastest' },
+];
+
+export const OPENROUTER_MODEL_PRESETS: ModelPresetOption[] = [
+  { id: 'auto', label: 'Auto (Best Free -> Fallback)' },
+  { id: 'openrouter/free', label: 'OpenRouter Free Auto · Free' },
+  { id: 'google/gemini-2.5-flash', label: 'Gemini 2.5 Flash · Fast' },
+  { id: 'anthropic/claude-sonnet-4', label: 'Claude Sonnet 4 · Best quality' },
+  { id: 'openai/gpt-4o-mini', label: 'GPT-4o mini · Balanced' },
+];
+
+class ProviderCallError extends Error {
+  readonly isAuthError: boolean;
+  readonly status?: number;
+
+  constructor(message: string, options: { isAuthError: boolean; status?: number }) {
+    super(message);
+    this.name = 'ProviderCallError';
+    this.isAuthError = options.isAuthError;
+    this.status = options.status;
+  }
+}
+
+function dedupeModels(models: string[]): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const m of models) {
+    const trimmed = m.trim();
+    if (!trimmed || seen.has(trimmed)) continue;
+    seen.add(trimmed);
+    out.push(trimmed);
+  }
+  return out;
+}
+
+function getGeminiFallbackChain(selectedModel: string): string[] {
+  const trimmed = selectedModel.trim();
+  if (!trimmed || trimmed === 'auto') {
+    return ['gemini-2.5-pro', 'gemini-2.5-flash', 'gemini-2.5-flash-lite'];
+  }
+  return dedupeModels([trimmed, 'gemini-2.5-flash', 'gemini-2.5-flash-lite']);
+}
+
+function getOpenRouterFallbackChain(selectedModel: string): string[] {
+  const trimmed = selectedModel.trim();
+  if (!trimmed || trimmed === 'auto') {
+    return [
+      'openrouter/free',
+      'google/gemma-3-27b-it:free',
+      'qwen/qwen2.5-vl-72b-instruct:free',
+    ];
+  }
+  return dedupeModels([trimmed, 'openrouter/free']);
+}
+
+async function callOpenRouterModel(params: {
   source: MediaSource;
   frames: SampledKeyframe[];
   audioStats: ClientAudioStats;
@@ -748,9 +812,9 @@ async function runOpenRouterEnhance(params: {
   customPrompt?: string;
   apiKey: string;
   model: string;
+  isFallback: boolean;
 }): Promise<AIEnhancePlan> {
-  const { source, frames, audioStats, goal, customPrompt, apiKey, model } = params;
-  const chosenModel = model.trim() || 'openrouter/free';
+  const { source, frames, audioStats, goal, customPrompt, apiKey, model, isFallback } = params;
   const promptText = buildLlmPromptText(source, frames, audioStats, goal, customPrompt);
 
   const content: Array<
@@ -774,40 +838,62 @@ async function runOpenRouterEnhance(params: {
       'X-Title': 'Slicemark',
     },
     body: JSON.stringify({
-      model: chosenModel,
+      model,
       messages: [{ role: 'user', content }],
       temperature: 0.2,
     }),
   });
 
   const payload = await response.json().catch(() => null) as {
+    model?: string;
     error?: { message?: string };
     choices?: Array<{ message?: { content?: string } }>;
   } | null;
 
   if (!response.ok) {
     if (response.status === 401 || response.status === 403) {
-      throw new Error('OpenRouter rejected your API key. Check your key at openrouter.ai/keys.');
+      throw new ProviderCallError(
+        'OpenRouter rejected your API key. Check your key at openrouter.ai/keys.',
+        { isAuthError: true, status: response.status }
+      );
     }
     if (response.status === 429) {
-      throw new Error('OpenRouter free-tier rate limit reached. Wait a moment or switch to Local Engine.');
+      throw new ProviderCallError(
+        'OpenRouter free-tier rate limit reached.',
+        { isAuthError: false, status: response.status }
+      );
     }
     if (response.status === 402) {
-      throw new Error('Selected OpenRouter model requires credits. Use "openrouter/free" or a ":free" vision model.');
+      throw new ProviderCallError(
+        'Selected OpenRouter model requires credits.',
+        { isAuthError: false, status: response.status }
+      );
     }
-    throw new Error(payload?.error?.message || `OpenRouter request failed (HTTP ${response.status}).`);
+    throw new ProviderCallError(
+      payload?.error?.message || `OpenRouter request failed (HTTP ${response.status}).`,
+      { isAuthError: false, status: response.status }
+    );
   }
 
   const rawText = payload?.choices?.[0]?.message?.content;
   if (!rawText || !rawText.trim()) {
-    throw new Error('OpenRouter returned an empty response. Try again or switch to Local Engine.');
+    throw new ProviderCallError('OpenRouter returned an empty response.', { isAuthError: false });
   }
 
-  const parsed = extractJsonObject(rawText);
-  return sanitizeEnhancePlan(parsed, source, audioStats, `OpenRouter · ${chosenModel}`);
+  let parsed: Record<string, unknown>;
+  try {
+    parsed = extractJsonObject(rawText);
+  } catch {
+    throw new ProviderCallError('OpenRouter returned invalid JSON.', { isAuthError: false });
+  }
+
+  const resolvedModel =
+    typeof payload?.model === 'string' && payload.model.trim() ? payload.model.trim() : model;
+  const label = `OpenRouter · ${resolvedModel}${isFallback ? ' (Fallback)' : ''}`;
+  return sanitizeEnhancePlan(parsed, source, audioStats, label);
 }
 
-async function runGeminiByokEnhance(params: {
+async function callGeminiModel(params: {
   source: MediaSource;
   frames: SampledKeyframe[];
   audioStats: ClientAudioStats;
@@ -815,9 +901,9 @@ async function runGeminiByokEnhance(params: {
   customPrompt?: string;
   apiKey: string;
   model: string;
+  isFallback: boolean;
 }): Promise<AIEnhancePlan> {
-  const { source, frames, audioStats, goal, customPrompt, apiKey, model } = params;
-  const chosenModel = model.trim() || 'gemini-2.5-flash';
+  const { source, frames, audioStats, goal, customPrompt, apiKey, model, isFallback } = params;
   const promptText = buildLlmPromptText(source, frames, audioStats, goal, customPrompt);
 
   const parts: Array<
@@ -834,7 +920,7 @@ async function runGeminiByokEnhance(params: {
     });
   }
 
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(chosenModel)}:generateContent?key=${encodeURIComponent(apiKey.trim())}`;
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(apiKey.trim())}`;
 
   const response = await fetch(url, {
     method: 'POST',
@@ -854,22 +940,44 @@ async function runGeminiByokEnhance(params: {
   } | null;
 
   if (!response.ok) {
-    if (response.status === 401 || response.status === 403 || response.status === 400) {
-      throw new Error(payload?.error?.message || 'Gemini API key or model was rejected. Check your key at aistudio.google.com.');
+    const errMsg = payload?.error?.message || '';
+    const isBadKey =
+      response.status === 401 ||
+      response.status === 403 ||
+      (response.status === 400 && /api[_ ]?key|API_KEY_INVALID/i.test(errMsg));
+
+    if (isBadKey) {
+      throw new ProviderCallError(
+        errMsg || 'Gemini API key was rejected. Check your key at aistudio.google.com.',
+        { isAuthError: true, status: response.status }
+      );
     }
     if (response.status === 429) {
-      throw new Error('Gemini free-tier rate limit reached. Wait a moment or switch to Local Engine.');
+      throw new ProviderCallError(
+        'Gemini rate limit reached.',
+        { isAuthError: false, status: response.status }
+      );
     }
-    throw new Error(payload?.error?.message || `Gemini request failed (HTTP ${response.status}).`);
+    throw new ProviderCallError(
+      errMsg || `Gemini request failed (HTTP ${response.status}).`,
+      { isAuthError: false, status: response.status }
+    );
   }
 
   const rawText = payload?.candidates?.[0]?.content?.parts?.[0]?.text;
   if (!rawText || !rawText.trim()) {
-    throw new Error('Gemini returned an empty response. Try again or switch to Local Engine.');
+    throw new ProviderCallError('Gemini returned an empty response.', { isAuthError: false });
   }
 
-  const parsed = extractJsonObject(rawText);
-  return sanitizeEnhancePlan(parsed, source, audioStats, `Gemini · ${chosenModel}`);
+  let parsed: Record<string, unknown>;
+  try {
+    parsed = extractJsonObject(rawText);
+  } catch {
+    throw new ProviderCallError('Gemini returned invalid JSON.', { isAuthError: false });
+  }
+
+  const label = `Gemini · ${model}${isFallback ? ' (Fallback)' : ''}`;
+  return sanitizeEnhancePlan(parsed, source, audioStats, label);
 }
 
 export async function requestAIVideoEnhance(params: {
@@ -891,35 +999,71 @@ export async function requestAIVideoEnhance(params: {
     return runLocalSmartEnhance(source, audioPeaks, goal, visualStats, audioStats);
   }
 
-  if (!providerConfig.apiKey.trim()) {
+  const isOpenRouter = providerConfig.provider === 'openrouter';
+  const apiKey = (isOpenRouter ? providerConfig.openRouterApiKey : providerConfig.geminiApiKey).trim();
+
+  if (!apiKey) {
     throw new Error(
-      providerConfig.provider === 'openrouter'
+      isOpenRouter
         ? 'Paste your OpenRouter API key (or switch to Local Engine for $0 offline use).'
         : 'Paste your Gemini API key (or switch to Local Engine for $0 offline use).'
     );
   }
 
-  if (providerConfig.provider === 'openrouter') {
-    onStep?.('Analyzing keyframes with OpenRouter...');
-    return runOpenRouterEnhance({
-      source,
-      frames,
-      audioStats,
-      goal,
-      customPrompt,
-      apiKey: providerConfig.apiKey,
-      model: providerConfig.openRouterModel,
-    });
+  const chain = isOpenRouter
+    ? getOpenRouterFallbackChain(providerConfig.openRouterModel)
+    : getGeminiFallbackChain(providerConfig.geminiModel);
+
+  for (let i = 0; i < chain.length; i++) {
+    const model = chain[i];
+    const isFallback = i > 0;
+    onStep?.(
+      isFallback
+        ? `Model busy — falling back to ${model}...`
+        : isOpenRouter
+          ? 'Analyzing keyframes with OpenRouter...'
+          : 'Analyzing keyframes with Gemini...'
+    );
+
+    try {
+      if (isOpenRouter) {
+        return await callOpenRouterModel({
+          source,
+          frames,
+          audioStats,
+          goal,
+          customPrompt,
+          apiKey,
+          model,
+          isFallback,
+        });
+      }
+      return await callGeminiModel({
+        source,
+        frames,
+        audioStats,
+        goal,
+        customPrompt,
+        apiKey,
+        model,
+        isFallback,
+      });
+    } catch (err) {
+      if (err instanceof ProviderCallError && err.isAuthError) {
+        throw err;
+      }
+      // Recoverable error: continue to next fallback model in chain
+    }
   }
 
-  onStep?.('Analyzing keyframes with Gemini...');
-  return runGeminiByokEnhance({
-    source,
-    frames,
-    audioStats,
-    goal,
-    customPrompt,
-    apiKey: providerConfig.apiKey,
-    model: providerConfig.geminiModel,
-  });
+  onStep?.('Cloud models busy — using Local Engine fallback...');
+  const localFallback = runLocalSmartEnhance(source, audioPeaks, goal, visualStats, audioStats);
+  return {
+    ...localFallback,
+    engineLabel: 'Local Engine (Fallback)',
+    notes: [
+      'Cloud model was busy or unavailable — completed with Local Engine fallback.',
+      ...localFallback.notes,
+    ],
+  };
 }
