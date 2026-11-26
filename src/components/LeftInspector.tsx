@@ -7,6 +7,8 @@ import {
   Crop,
   Download,
   ExternalLink,
+  Eye,
+  EyeOff,
   FlipHorizontal2,
   ImagePlus,
   ListVideo,
@@ -212,6 +214,7 @@ export const LeftInspector: React.FC<LeftInspectorProps> = ({
   const [startInput, setStartInput] = useState('00:00.00');
   const [endInput, setEndInput] = useState('00:15.00');
   const [customModelOpen, setCustomModelOpen] = useState(false);
+  const [showApiKey, setShowApiKey] = useState(false);
 
   useEffect(() => {
     setCustomIntervalInput(String(smartSplit.intervalSeconds));
@@ -438,7 +441,11 @@ export const LeftInspector: React.FC<LeftInspectorProps> = ({
                         key={opt.id}
                         type="button"
                         disabled={isEnhancing}
-                        onClick={() => onEnhanceProviderConfigChange({ provider: opt.id })}
+                        onClick={() => {
+                          setCustomModelOpen(false);
+                          setShowApiKey(false);
+                          onEnhanceProviderConfigChange({ provider: opt.id });
+                        }}
                         className={`h-7 rounded-sm text-[11px] font-medium transition-colors cursor-pointer disabled:opacity-50 ${
                           active
                             ? 'bg-surface text-primary shadow-sm border border-border-strong'
@@ -460,6 +467,10 @@ export const LeftInspector: React.FC<LeftInspectorProps> = ({
                   const currentModel = isOpenRouter
                     ? enhanceProviderConfig.openRouterModel
                     : enhanceProviderConfig.geminiModel;
+                  const currentApiKey = isOpenRouter
+                    ? enhanceProviderConfig.openRouterApiKey
+                    : enhanceProviderConfig.geminiApiKey;
+                  const hasSavedKey = currentApiKey.trim().length > 0;
                   const isPreset = presets.some((p) => p.id === currentModel);
                   const showCustomInput = customModelOpen || !isPreset;
                   const selectValue = showCustomInput ? '__custom__' : currentModel;
@@ -467,9 +478,17 @@ export const LeftInspector: React.FC<LeftInspectorProps> = ({
                   return (
                     <div className="mt-2 p-2.5 rounded-md bg-body border border-border space-y-2">
                       <div className="flex items-center justify-between gap-2">
-                        <label className="text-[11px] font-medium text-secondary">
-                          {isOpenRouter ? 'OpenRouter API Key' : 'Gemini API Key'}
-                        </label>
+                        <div className="flex items-center gap-1.5 min-w-0">
+                          <label className="text-[11px] font-medium text-secondary">
+                            {isOpenRouter ? 'OpenRouter API Key' : 'Gemini API Key'}
+                          </label>
+                          {hasSavedKey && (
+                            <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-xs bg-info/15 text-info text-[10px] font-medium">
+                              <Check className="w-2.5 h-2.5" />
+                              Saved
+                            </span>
+                          )}
+                        </div>
                         <a
                           href={
                             isOpenRouter
@@ -478,30 +497,60 @@ export const LeftInspector: React.FC<LeftInspectorProps> = ({
                           }
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="inline-flex items-center gap-1 text-[10px] text-info hover:underline"
+                          className="inline-flex items-center gap-1 text-[10px] text-info hover:underline shrink-0"
                         >
                           <span>Get free key</span>
                           <ExternalLink className="w-2.5 h-2.5" />
                         </a>
                       </div>
-                      <input
-                        type="password"
-                        value={
-                          isOpenRouter
-                            ? enhanceProviderConfig.openRouterApiKey
-                            : enhanceProviderConfig.geminiApiKey
-                        }
-                        disabled={isEnhancing}
-                        onChange={(e) =>
-                          onEnhanceProviderConfigChange(
-                            isOpenRouter
-                              ? { openRouterApiKey: e.target.value }
-                              : { geminiApiKey: e.target.value }
-                          )
-                        }
-                        placeholder={isOpenRouter ? 'sk-or-v1-...' : 'AIza...'}
-                        className="w-full h-7 px-2 rounded-sm bg-surface border border-border-strong text-[11px] font-mono text-primary placeholder:text-secondary/60 focus:outline-none focus:border-info disabled:opacity-50"
-                      />
+                      <div className="flex items-center gap-1">
+                        <input
+                          type={showApiKey ? 'text' : 'password'}
+                          value={currentApiKey}
+                          disabled={isEnhancing}
+                          onChange={(e) =>
+                            onEnhanceProviderConfigChange(
+                              isOpenRouter
+                                ? { openRouterApiKey: e.target.value }
+                                : { geminiApiKey: e.target.value }
+                            )
+                          }
+                          placeholder={isOpenRouter ? 'sk-or-v1-...' : 'AIza...'}
+                          className="flex-1 min-w-0 h-7 px-2 rounded-sm bg-surface border border-border-strong text-[11px] font-mono text-primary placeholder:text-secondary/60 focus:outline-none focus:border-info disabled:opacity-50"
+                        />
+                        <button
+                          type="button"
+                          disabled={isEnhancing}
+                          onClick={() => setShowApiKey((v) => !v)}
+                          aria-label="Toggle API key visibility"
+                          title={showApiKey ? 'Hide key' : 'Show key'}
+                          className="w-7 h-7 shrink-0 rounded-sm bg-surface border border-border-strong text-secondary hover:text-primary flex items-center justify-center transition-colors cursor-pointer disabled:opacity-50"
+                        >
+                          {showApiKey ? (
+                            <EyeOff className="w-3.5 h-3.5" />
+                          ) : (
+                            <Eye className="w-3.5 h-3.5" />
+                          )}
+                        </button>
+                        {hasSavedKey && (
+                          <button
+                            type="button"
+                            disabled={isEnhancing}
+                            onClick={() =>
+                              onEnhanceProviderConfigChange(
+                                isOpenRouter
+                                  ? { openRouterApiKey: '' }
+                                  : { geminiApiKey: '' }
+                              )
+                            }
+                            aria-label="Clear saved API key"
+                            title="Clear saved key"
+                            className="w-7 h-7 shrink-0 rounded-sm bg-surface border border-border-strong text-secondary hover:text-error hover:border-error/40 flex items-center justify-center transition-colors cursor-pointer disabled:opacity-50"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+                      </div>
                       <div className="space-y-1.5">
                         <div className="flex items-center justify-between gap-2">
                           <label className="text-[10px] text-secondary shrink-0">Model</label>

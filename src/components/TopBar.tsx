@@ -1,5 +1,5 @@
 import React from 'react';
-import { Download, Keyboard, Moon, Sun, Upload } from 'lucide-react';
+import { Download, History, Keyboard, Moon, Sun, Upload } from 'lucide-react';
 import { OutputFormat, ThemeMode } from '../types/editor';
 import { PWAInstallButton } from './PWAInstallButton';
 
@@ -7,6 +7,8 @@ interface TopBarProps {
   theme: ThemeMode;
   onToggleTheme: () => void;
   onImportClick: () => void;
+  onOpenHistory: () => void;
+  historyCount: number;
   onOpenShortcuts: () => void;
   onExportClick: () => void;
   onOpenShowcase?: () => void;
@@ -21,6 +23,8 @@ export const TopBar: React.FC<TopBarProps> = ({
   theme,
   onToggleTheme,
   onImportClick,
+  onOpenHistory,
+  historyCount,
   onOpenShortcuts,
   onExportClick,
   onOpenShowcase,
@@ -107,6 +111,18 @@ export const TopBar: React.FC<TopBarProps> = ({
         >
           <Upload className="w-4 h-4 sm:w-3.5 sm:h-3.5" />
           <span className="hidden sm:inline">{hasMedia ? 'Replace Video' : 'Import Video'}</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={onOpenHistory}
+          title="Local History"
+          className="inline-flex items-center gap-1.5 py-1.5 text-secondary hover:text-primary transition-colors duration-150 whitespace-nowrap shrink-0 cursor-pointer focus-visible:outline-2 focus-visible:outline-info focus-visible:outline-offset-2 rounded-xs"
+        >
+          <History className="w-4 h-4 sm:w-3.5 sm:h-3.5" />
+          <span className="hidden sm:inline">
+            History{historyCount > 0 ? ` (${historyCount})` : ''}
+          </span>
         </button>
 
         <button

@@ -1,15 +1,19 @@
 import React, { useState } from 'react';
-import { AlertCircle, Film, Upload } from 'lucide-react';
+import { AlertCircle, Film, History, Upload } from 'lucide-react';
 import { PWAInstallButton } from './PWAInstallButton';
 
 interface MediaIntakeProps {
   onSelectFile: (file: File) => void;
   error: string | null;
+  historyCount?: number;
+  onOpenHistory?: () => void;
 }
 
 export const MediaIntake: React.FC<MediaIntakeProps> = ({
   onSelectFile,
   error,
+  historyCount = 0,
+  onOpenHistory,
 }) => {
   const [isDragging, setIsDragging] = useState(false);
 
@@ -92,6 +96,17 @@ export const MediaIntake: React.FC<MediaIntakeProps> = ({
             </label>
 
             <PWAInstallButton />
+
+            {historyCount > 0 && onOpenHistory && (
+              <button
+                type="button"
+                onClick={onOpenHistory}
+                className="h-10 px-4 rounded-md bg-neutral border border-border-strong text-primary text-[13px] font-medium inline-flex items-center gap-2 hover:bg-overlay-hover transition-colors cursor-pointer whitespace-nowrap shrink-0"
+              >
+                <History className="w-4 h-4 text-secondary" />
+                <span>History ({historyCount})</span>
+              </button>
+            )}
           </div>
 
           {error && (

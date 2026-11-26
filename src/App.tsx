@@ -17,6 +17,7 @@ import {
 import { ChaptersModal } from './components/ChaptersModal';
 import { ClipQueue } from './components/ClipQueue';
 import { ExportModal } from './components/ExportModal';
+import { HistoryModal } from './components/HistoryModal';
 import { LandingShowcase } from './components/LandingShowcase';
 import { LeftInspector } from './components/LeftInspector';
 import { MediaIntake } from './components/MediaIntake';
@@ -41,6 +42,7 @@ import {
   FilmstripFrame,
   FitMode,
   InspectorTab,
+  LocalHistoryEntry,
   ManualCutMode,
   MediaSource,
   OverlaySettings,
@@ -74,6 +76,12 @@ import {
   splitSegmentsAtTime,
 } from './utils/segmentGenerator';
 import { detectActiveSpeechSegments, detectSceneChanges } from './utils/smartAnalysis';
+import {
+  addLocalHistoryEntry,
+  clearLocalHistory,
+  loadLocalHistory,
+  removeLocalHistoryEntry,
+} from './utils/localHistory';
 import { parseSubtitleFile } from './utils/subtitles';
 import { clamp, formatRulerTime, sanitizeFilename } from './utils/timecode';
 
@@ -275,6 +283,8 @@ export default function App() {
   const [mobileSheet, setMobileSheet] = useState<InspectorTab | 'queue' | null>(null);
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const [chaptersOpen, setChaptersOpen] = useState(false);
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [localHistory, setLocalHistory] = useState<LocalHistoryEntry[]>(() => loadLocalHistory());
   const [statusNotice, setStatusNotice] = useState<string | null>(null);
   const noticeTimerRef = useRef<number | null>(null);
 
@@ -1324,6 +1334,21 @@ export default function App() {
       });
       setEnhancePlan(plan);
       handleApplyAIVisualAudio(plan);
+      setLocalHistory(
+        addLocalHistoryEntry({
+          kind: 'autotune',
+          fileName: source.name,
+          duration: source.duration,
+          resolution: `${source.width}×${source.height}`,
+          label: plan.visualStyleName,
+          detail: plan.engineLabel || 'Auto-Tune',
+          color: { ...plan.color },
+          audio: { ...plan.audio },
+          aspectPreset: plan.framing.recommendedAspect,
+          fitMode: plan.framing.recommendedFitMode,
+          plan,
+        })
+      );
     } catch (err) {
       setEnhanceError(err instanceof Error ? err.message : 'Smart Auto-Tune failed unexpectedly.');
     } finally {
@@ -1407,6 +1432,30 @@ export default function App() {
     showNotice('Reset visual and audio auto-tune');
   }, [showNotice]);
 
+  const handleApplyHistoryEntry = useCallback(
+    (entry: LocalHistoryEntry) => {
+      if (!source) return;
+      setTransform((prev) => ({
+        ...prev,
+        color: { ...entry.color },
+      }));
+      setAudio((prev) => ({
+        ...prev,
+        muted: false,
+        volume: entry.audio.volume,
+        normalize: entry.audio.normalize,
+        voiceEnhance: entry.audio.voiceEnhance,
+        fadeIn: entry.audio.fadeIn,
+        fadeOut: entry.audio.fadeOut,
+      }));
+      if (entry.plan) {
+        setEnhancePlan(entry.plan);
+      }
+      showNotice(`Applied look "${entry.label}" from history`);
+    },
+    [source, showNotice]
+  );
+
   // FFmpeg Export Execution
   const startExport = useCallback(
     async (targetSegments: ClipSegment[], singleClipOverride = false) => {
@@ -1441,6 +1490,28 @@ export default function App() {
         });
 
         setExportState(result);
+        if (result.status === 'done') {
+          setLocalHistory(
+            addLocalHistoryEntry({
+              kind: 'export',
+              fileName: source.name,
+              duration: source.duration,
+              resolution: `${source.width}×${source.height}`,
+              label: `${targetSegments.length} ${targetSegments.length === 1 ? 'clip' : 'clips'} · ${exportSettings.format.toUpperCase()}`,
+              detail: `${transform.aspectPreset} · ${exportSettings.resolution === 'original' ? 'Original' : `${exportSettings.resolution}p`} · ${result.usedReencode ? 'Re-encoded' : 'Lossless'}`,
+              color: { ...transform.color },
+              audio: {
+                volume: audio.volume,
+                normalize: audio.normalize,
+                voiceEnhance: audio.voiceEnhance,
+                fadeIn: audio.fadeIn,
+                fadeOut: audio.fadeOut,
+              },
+              aspectPreset: transform.aspectPreset,
+              fitMode: transform.fitMode,
+            })
+          );
+        }
         if (result.downloadUrl && result.downloadFilename) {
           triggerBrowserDownload(result.downloadUrl, result.downloadFilename);
         }
@@ -1718,6 +1789,8 @@ export default function App() {
         theme={theme}
         onToggleTheme={() => setTheme((t) => (t === 'dark' ? 'light' : 'dark'))}
         onImportClick={() => fileInputRef.current?.click()}
+        onOpenHistory={() => setHistoryOpen(true)}
+        historyCount={localHistory.length}
         onOpenShortcuts={() => setShortcutsOpen(true)}
         onExportClick={() => startExport(segments)}
         onOpenShowcase={() => navigateView('pages')}
@@ -1737,6 +1810,8 @@ export default function App() {
         <MediaIntake
           onSelectFile={loadVideoFile}
           error={intakeError}
+          historyCount={localHistory.length}
+          onOpenHistory={() => setHistoryOpen(true)}
         />
       ) : (
         <div className="flex-1 min-h-0 flex flex-col lg:flex-row overflow-hidden">
@@ -1906,6 +1981,16 @@ export default function App() {
       />
 
       <ShortcutsModal open={shortcutsOpen} onClose={() => setShortcutsOpen(false)} />
+
+      <HistoryModal
+        open={historyOpen}
+        entries={localHistory}
+        hasLoadedVideo={Boolean(source)}
+        onApplyEntry={handleApplyHistoryEntry}
+        onDeleteEntry={(id) => setLocalHistory(removeLocalHistoryEntry(id))}
+        onClearAll={() => setLocalHistory(clearLocalHistory())}
+        onClose={() => setHistoryOpen(false)}
+      />
 
       {source && (
         <ChaptersModal

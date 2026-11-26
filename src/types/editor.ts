@@ -232,3 +232,25 @@ export interface AIEnhancePlan {
   };
   suggestedClips: AISuggestedClip[];
 }
+
+export interface LocalHistoryEntry {
+  id: string;
+  createdAt: number;
+  kind: 'autotune' | 'export';
+  fileName: string;
+  duration: number;
+  resolution: string;
+  label: string;
+  detail: string;
+  color: ColorSettings;
+  audio: {
+    volume: number;
+    normalize: boolean;
+    voiceEnhance: boolean;
+    fadeIn: number;
+    fadeOut: number;
+  };
+  aspectPreset?: AspectPreset;
+  fitMode?: FitMode;
+  plan?: AIEnhancePlan;
+}
